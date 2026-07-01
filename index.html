@@ -9,30 +9,121 @@
 <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{background:#F7F4EE;font-family:'DM Sans',sans-serif}
-  ::-webkit-scrollbar{width:6px;height:6px}
-  ::-webkit-scrollbar-track{background:#F1F1F1}
-  ::-webkit-scrollbar-thumb{background:#CFB47C;border-radius:3px}
-  input[type=number]::-webkit-inner-spin-button{opacity:1}
-  .row-hover:hover{background:#F0E4C4!important}
-  .row-sel{background:#F0E4C4!important}
-  .panel-in{animation:slideDown .18s ease}
-  @keyframes slideDown{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#F7F4EE;font-family:'DM Sans',sans-serif}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:#F1F1F1}
+::-webkit-scrollbar-thumb{background:#CFB47C;border-radius:3px}
+input[type=number]::-webkit-inner-spin-button{opacity:1}
+.rh:hover{background:#F0E4C4!important}
+.rsel{background:#F0E4C4!important}
+.pin{animation:slideDown .18s ease}
+@keyframes slideDown{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+a{color:#102B42}code{background:#F3F4F6;padding:1px 5px;border-radius:3px;font-family:monospace;font-size:12px}
+ol li{margin-bottom:6px}
+@keyframes progress{0%{width:0;margin-left:0}50%{width:60%;margin-left:20%}100%{width:0;margin-left:100%}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 </style>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel">
 const{useState,useEffect,useMemo,useCallback,useRef}=React;
+const BODEGAS_SEED={
+  "L001":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":8,"ST 207/12":183,"ST 207/13":0},
+  "L002":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":51,"ST 207/12":34,"ST 207/13":0},
+  "L003":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":80,"ST 207/12":263,"ST 207/13":0},
+  "L004":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":20,"ST 207/12":160,"ST 207/13":0},
+  "L005":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":91,"ST 207/12":148,"ST 207/13":0},
+  "L006":{"BES/-2":240,"BES/5":0,"BES/8":42,"El Cóndor 5":0,"ST 207/12":1287,"ST 207/13":0},
+  "L007":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":38,"ST 207/12":176,"ST 207/13":0},
+  "L008":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":9,"ST 207/12":99,"ST 207/13":0},
+  "L009":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":8,"ST 207/12":619,"ST 207/13":0},
+  "L010":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":14,"ST 207/12":154,"ST 207/13":0},
+  "L011":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":81,"ST 207/12":702,"ST 207/13":0},
+  "L012":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":90,"ST 207/12":189,"ST 207/13":0},
+  "L013":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":26,"ST 207/12":206,"ST 207/13":0},
+  "L014":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":96,"ST 207/12":187,"ST 207/13":0},
+  "L015":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":28,"ST 207/12":264,"ST 207/13":0},
+  "L016":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":25,"ST 207/12":85,"ST 207/13":0},
+  "L017":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":112,"ST 207/12":0,"ST 207/13":600},
+  "L018":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":0,"ST 207/12":0,"ST 207/13":102},
+  "L019":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":0,"ST 207/12":0,"ST 207/13":132},
+  "L020":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":0,"ST 207/12":0,"ST 207/13":108},
+  "L021":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":0,"ST 207/12":0,"ST 207/13":42},
+  "L022":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":35,"ST 207/12":252,"ST 207/13":0},
+  "L023":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":33,"ST 207/12":259,"ST 207/13":0},
+  "L024":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":6,"ST 207/12":0,"ST 207/13":100},
+  "L025":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":0,"ST 207/12":58,"ST 207/13":105},
+  "L026":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":38,"ST 207/12":672,"ST 207/13":168},
+  "L027":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":347,"ST 207/12":0,"ST 207/13":138},
+  "L028":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":54,"ST 207/12":0,"ST 207/13":70},
+  "L029":{"BES/-2":400,"BES/5":208,"BES/8":0,"El Cóndor 5":0,"ST 207/12":0,"ST 207/13":0},
+  "L030":{"BES/-2":29,"BES/5":57,"BES/8":128,"El Cóndor 5":0,"ST 207/12":0,"ST 207/13":0},
+  "L031":{"BES/-2":20,"BES/5":10,"BES/8":45,"El Cóndor 5":0,"ST 207/12":0,"ST 207/13":0},
+  "L032":{"BES/-2":68,"BES/5":86,"BES/8":60,"El Cóndor 5":2,"ST 207/12":0,"ST 207/13":0},
+  "L033":{"BES/-2":6,"BES/5":0,"BES/8":44,"El Cóndor 5":8,"ST 207/12":0,"ST 207/13":0},
+  "L034":{"BES/-2":62,"BES/5":60,"BES/8":93,"El Cóndor 5":3,"ST 207/12":0,"ST 207/13":0},
+  "L035":{"BES/-2":0,"BES/5":12,"BES/8":39,"El Cóndor 5":0,"ST 207/12":0,"ST 207/13":0},
+  "L036":{"BES/-2":307,"BES/5":0,"BES/8":0,"El Cóndor 5":102,"ST 207/12":0,"ST 207/13":0},
+  "L037":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":102,"ST 207/12":0,"ST 207/13":0},
+  "L038":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":221,"ST 207/12":0,"ST 207/13":0},
+  "L039":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":225,"ST 207/12":0,"ST 207/13":0},
+  "L040":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":195,"ST 207/12":0,"ST 207/13":0},
+  "L041":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":0,"ST 207/12":0,"ST 207/13":0},
+  "L042":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":382,"ST 207/12":98,"ST 207/13":0},
+  "L043":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":65,"ST 207/12":0,"ST 207/13":0},
+  "L044":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":302,"ST 207/12":0,"ST 207/13":0},
+  "L045":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":61,"ST 207/12":0,"ST 207/13":0},
+  "L046":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":63,"ST 207/12":80,"ST 207/13":0},
+  "L047":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":89,"ST 207/12":0,"ST 207/13":0},
+  "L048":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":39,"ST 207/12":0,"ST 207/13":0},
+  "L049":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":97,"ST 207/12":0,"ST 207/13":0},
+  "L050":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":73,"ST 207/12":0,"ST 207/13":0},
+  "L051":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":19,"ST 207/12":0,"ST 207/13":0},
+  "L052":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":33,"ST 207/12":0,"ST 207/13":0},
+  "L053":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":0,"ST 207/12":0,"ST 207/13":0},
+  "L054":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":140,"ST 207/12":0,"ST 207/13":0},
+  "L055":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":256,"ST 207/12":0,"ST 207/13":0},
+  "L056":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":160,"ST 207/12":0,"ST 207/13":0},
+  "L057":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":242,"ST 207/12":0,"ST 207/13":0},
+  "L058":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":26,"ST 207/12":0,"ST 207/13":0},
+  "L059":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":75,"ST 207/12":0,"ST 207/13":0},
+  "L060":{"BES/-2":13,"BES/5":0,"BES/8":0,"El Cóndor 5":830,"ST 207/12":0,"ST 207/13":0},
+  "L061":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":0,"ST 207/12":176,"ST 207/13":0},
+  "L062":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":81,"ST 207/12":0,"ST 207/13":0},
+  "L063":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":127,"ST 207/12":0,"ST 207/13":0},
+  "L064":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":6,"ST 207/12":0,"ST 207/13":0},
+  "L065":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":6,"ST 207/12":0,"ST 207/13":0},
+  "L066":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":3,"ST 207/12":0,"ST 207/13":0},
+  "L067":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":146,"ST 207/12":0,"ST 207/13":0},
+  "L068":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":346,"ST 207/12":0,"ST 207/13":0},
+  "L069":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":138,"ST 207/12":0,"ST 207/13":0},
+  "L070":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":49,"ST 207/12":0,"ST 207/13":0},
+  "L071":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":254,"ST 207/12":0,"ST 207/13":0},
+  "L072":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":100,"ST 207/12":0,"ST 207/13":0},
+  "L073":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":100,"ST 207/12":0,"ST 207/13":0},
+  "L074":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":0,"ST 207/12":1300,"ST 207/13":0},
+  "L075":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":177,"ST 207/12":0,"ST 207/13":0},
+  "L076":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":9,"ST 207/12":0,"ST 207/13":0},
+  "L077":{"BES/-2":0,"BES/5":0,"BES/8":0,"El Cóndor 5":319,"ST 207/12":0,"ST 207/13":0},
+};
 
-/* ── Tokens ─────────────────────────────────────────────────────── */
+/* ── Tokens ── */
 const N="#102B42",G="#CFB47C",G2="#F0E4C4",CR="#F7F4EE",W="#FFFFFF",MU="#64748B";
 const GR="#166534",GRL="#DCFCE7",OR="#92400E",ORL="#FEF3C7",RD="#9B1C1C",RDL="#FEE2E2",BL="#1E3A8A",BLL="#DBEAFE";
 const CATS=["Historia y Política","Educación","Filosofía y Religión","Colección FMV","Editorial Escolar","Arquitectura y Arte"];
+const BOD_NAMES=["BES/-2","BES/5","BES/8","El Cóndor 5","ST 207/12","ST 207/13"];
+const BLANK_BOD=()=>Object.fromEntries(BOD_NAMES.map(k=>[k,0]));
+const LIBRO_HDR=["id","titulo","autor","isbn","pN","pU","ano","si","me","cat","b_bes2","b_bes5","b_bes8","b_condor5","b_st20712","b_st20713"];
+const REG_HDR=["id","libroId","cantidad","fecha","stakeholder","nota"];
+const CONS_HDR=["id","libroId","distribuidor","cantEnv","cantVend","cantDev","fechaEnv","notas","estado"];
+const DEFAULT_PATH="CEUSS/Inventario-USS.xlsx";
 
-/* ── Seed (77 títulos desde Excel) ─────────────────────────────── */
+/* ── SEED ── */
 const SEED=[
   {id:"L001",titulo:"Antonio Varas. El ministro y el proyecto político Monttvarista (1817-1886)",autor:"Gonzalo Arenas Hödar",isbn:"9789566115786",pN:24500,pU:20000,ano:2024,si:191,me:0,cat:"Historia y Política"},
   {id:"L002",titulo:"La nueva historia diplomática. Hitos chilenos de los siglos XIX-XX",autor:"Cristián Medina Valverde (compilador)",isbn:"9789566115762",pN:16000,pU:12800,ano:2024,si:85,me:0,cat:"Historia y Política"},
@@ -111,36 +202,96 @@ const SEED=[
   {id:"L075",titulo:"La Libertad en las Bellas Artes",autor:"(Sin información)",isbn:"9789566469049",pN:21000,pU:16800,ano:2026,si:177,me:0,cat:"Arquitectura y Arte"},
   {id:"L076",titulo:"Historia de Chile Tomo 1 – Tapa Rústica",autor:"(Sin información)",isbn:"9789567439447",pN:null,pU:null,ano:null,si:9,me:0,cat:"Historia y Política"},
   {id:"L077",titulo:"Por qué fracasan los presidentes. Partidos políticos y supervivencia gubernamental en América Latina",autor:"Christopher Martínez",isbn:"9789566469025",pN:25000,pU:20000,ano:2026,si:319,me:0,cat:"Historia y Política"},
-];
+].map(l=>({...l,bodegas:BODEGAS_SEED[l.id]||BLANK_BOD()}));
 
-/* ── Utils ─────────────────────────────────────────────────────── */
+/* ── Utils ── */
 const f$=n=>n!=null?`$${Number(n).toLocaleString("es-CL")}`:"—";
 const fD=iso=>{if(!iso)return"—";const[y,m,d]=iso.split("-");return`${d}/${m}/${y}`;};
 const uid=()=>`${Date.now().toString(36)}${Math.random().toString(36).slice(2,6)}`;
 const trunc=(s,n)=>s&&s.length>n?s.slice(0,n)+"…":(s||"");
 const toNum=v=>v===""||v===null||v===undefined?null:Number(v)||null;
+const colLetter=n=>{let s="";while(n>0){n--;s=String.fromCharCode(65+(n%26))+s;n=Math.floor(n/26);}return s;};
 
-/* ── Storage ─────────────────────────────────────────────────── */
+/* ── Storage ── */
 function stGet(k){try{const r=localStorage.getItem(k);return r?JSON.parse(r):null;}catch{return null;}}
 function stSet(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch{}}
 
-/* ── Stock ───────────────────────────────────────────────────── */
+/* ── MSAL / Auth ── */
+const SCOPES=["Files.ReadWrite","User.Read"];
+let msalInst=null;
+function buildMsal(clientId){
+  msalInst=new msal.PublicClientApplication({
+    auth:{clientId,authority:"https://login.microsoftonline.com/common",redirectUri:window.location.origin+window.location.pathname,navigateToLoginRequestUrl:false},
+    cache:{cacheLocation:"localStorage",storeAuthStateInCookie:false},
+  });
+}
+async function msalLogin(){const r=await msalInst.loginPopup({scopes:SCOPES,prompt:"select_account"});return r.account;}
+async function getToken(){
+  const accounts=msalInst.getAllAccounts();if(!accounts.length)throw new Error("No hay sesión activa.");
+  try{const r=await msalInst.acquireTokenSilent({scopes:SCOPES,account:accounts[0]});return r.accessToken;}
+  catch{const r=await msalInst.acquireTokenPopup({scopes:SCOPES,account:accounts[0]});return r.accessToken;}
+}
+
+/* ── Graph / Excel ── */
+const GRAPH="https://graph.microsoft.com/v1.0";
+async function gFetch(token,method,path,body){
+  const res=await fetch(`${GRAPH}${path}`,{method,headers:{"Authorization":`Bearer ${token}`,"Content-Type":"application/json"},body:body!==undefined?JSON.stringify(body):undefined});
+  if(res.status===204||res.status===202)return null;
+  if(!res.ok){let e;try{e=await res.json();}catch{e={error:{message:res.statusText}};}throw new Error(e.error?.message||`Error ${res.status}`);}
+  return res.json();
+}
+async function checkFileExists(token,fp){try{await gFetch(token,"GET",`/me/drive/root:/${fp}`);return true;}catch{return false;}}
+function libroToRow(l){return[l.id,l.titulo||"",l.autor||"",l.isbn||"",l.pN??"",l.pU??"",l.ano??"",l.si??0,l.me??0,l.cat||"",l.bodegas?.["BES/-2"]??0,l.bodegas?.["BES/5"]??0,l.bodegas?.["BES/8"]??0,l.bodegas?.["El Cóndor 5"]??0,l.bodegas?.["ST 207/12"]??0,l.bodegas?.["ST 207/13"]??0];}
+
+async function createExcelOnOneDrive(token,fp){
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([LIBRO_HDR,...SEED.map(libroToRow)]),"Libros");
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([REG_HDR]),"Regalos");
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([CONS_HDR]),"Consignaciones");
+  const arr=XLSX.write(wb,{bookType:"xlsx",type:"array"});
+  await fetch(`${GRAPH}/me/drive/root:/${fp}:/content`,{method:"PUT",headers:{"Authorization":`Bearer ${token}`,"Content-Type":"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"},body:new Blob([arr],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"})});
+}
+async function readSheet(token,fp,sh){try{const d=await gFetch(token,"GET",`/me/drive/root:/${fp}:/workbook/worksheets('${encodeURIComponent(sh)}')/usedRange`);return d?.values||[];}catch{return[];}}
+async function writeSheet(token,fp,sh,values){
+  if(!values||values.length===0)return;
+  try{await gFetch(token,"POST",`/me/drive/root:/${fp}:/workbook/worksheets('${encodeURIComponent(sh)}')/usedRange/clear`,{applyTo:"Contents"});}catch{}
+  const r=`A1:${colLetter(values[0].length)}${values.length}`;
+  await gFetch(token,"PATCH",`/me/drive/root:/${fp}:/workbook/worksheets('${encodeURIComponent(sh)}')/range(address='${r}')`,{values});
+}
+function rowsToObjects(rows){
+  if(!rows||rows.length<2)return[];
+  const hdrs=rows[0];
+  const NUM=["pN","pU","ano","si","me","cantEnv","cantVend","cantDev","cantidad","b_bes2","b_bes5","b_bes8","b_condor5","b_st20712","b_st20713"];
+  return rows.slice(1).filter(r=>r.some(v=>v!==null&&v!=="")).map(row=>{
+    const obj={};
+    hdrs.forEach((h,i)=>{const v=row[i];obj[h]=(v===null||v==="")?(["pN","pU","ano"].includes(h)?null:v):v;});
+    NUM.forEach(k=>{if(obj[k]!=null&&obj[k]!=="")obj[k]=Number(obj[k])||0;});
+    // Reconstruct bodegas object
+    obj.bodegas={"BES/-2":obj.b_bes2||0,"BES/5":obj.b_bes5||0,"BES/8":obj.b_bes8||0,"El Cóndor 5":obj.b_condor5||0,"ST 207/12":obj.b_st20712||0,"ST 207/13":obj.b_st20713||0};
+    return obj;
+  });
+}
+async function loadFromOneDrive(token,fp){
+  const[lr,rr,cr]=await Promise.all([readSheet(token,fp,"Libros"),readSheet(token,fp,"Regalos"),readSheet(token,fp,"Consignaciones")]);
+  return{libros:rowsToObjects(lr),regalos:rowsToObjects(rr),consignaciones:rowsToObjects(cr)};
+}
+
+/* ── Stock ── */
 function calcStock(libroId,regalos,consignaciones,libros){
-  const l=libros.find(x=>x.id===libroId);
-  if(!l)return{disp:0,enConsig:0,regalados:0,malEstado:0};
+  const l=libros.find(x=>x.id===libroId);if(!l)return{disp:0,enConsig:0,regalados:0,malEstado:0};
   const regalados=regalos.filter(r=>r.libroId===libroId).reduce((s,r)=>s+r.cantidad,0);
   const enConsig=consignaciones.filter(c=>c.libroId===libroId).reduce((s,c)=>s+c.cantEnv-(c.cantVend||0)-(c.cantDev||0),0);
   return{disp:l.si-l.me-regalados-enConsig,enConsig,regalados,malEstado:l.me};
 }
 
-/* ── Primitives ──────────────────────────────────────────────── */
+/* ── UI Primitives ── */
 function Btn({children,onClick,v="primary",sm,disabled,style={}}){
-  const m={primary:{bg:N,cl:W,br:N},secondary:{bg:G,cl:N,br:G},ghost:{bg:"transparent",cl:N,br:"#D1D5DB"},danger:{bg:RD,cl:W,br:RD},blue:{bg:"#2563EB",cl:W,br:"#2563EB"},green:{bg:GR,cl:W,br:GR}};
+  const m={primary:{bg:N,cl:W,br:N},secondary:{bg:G,cl:N,br:G},ghost:{bg:"transparent",cl:N,br:"#D1D5DB"},danger:{bg:RD,cl:W,br:RD},blue:{bg:"#2563EB",cl:W,br:"#2563EB"},green:{bg:GR,cl:W,br:GR},orange:{bg:OR,cl:W,br:OR}};
   const{bg,cl,br}=m[v]||m.primary;
   return<button onClick={onClick} disabled={disabled} style={{padding:sm?"5px 10px":"8px 18px",background:disabled?"#E5E7EB":bg,color:disabled?"#9CA3AF":cl,border:`1px solid ${disabled?"#E5E7EB":br}`,borderRadius:6,cursor:disabled?"not-allowed":"pointer",fontWeight:600,fontSize:sm?12:13,fontFamily:"DM Sans,sans-serif",lineHeight:1.4,...style}}>{children}</button>;
 }
-function Inp({value,onChange,type="text",placeholder,style={},min,max,readOnly}){
-  return<input type={type} value={value??""} onChange={e=>onChange(e.target.value)} placeholder={placeholder} min={min} max={max} readOnly={readOnly}
+function Inp({value,onChange,type="text",placeholder,style={},min,max,readOnly,autoFocus,onKeyDown}){
+  return<input type={type} value={value??""} onChange={e=>onChange(e.target.value)} placeholder={placeholder} min={min} max={max} readOnly={readOnly} autoFocus={autoFocus} onKeyDown={onKeyDown}
     style={{padding:"7px 11px",border:`1px solid ${readOnly?"#E5E7EB":"#D1D5DB"}`,borderRadius:6,fontSize:13,outline:"none",fontFamily:"DM Sans,sans-serif",color:readOnly?MU:N,background:readOnly?"#F9FAFB":W,...style}}/>;
 }
 function Sel({value,onChange,options,placeholder,style={}}){
@@ -150,418 +301,461 @@ function Sel({value,onChange,options,placeholder,style={}}){
   </select>;
 }
 function Badge({text,color=GR,bg=GRL}){return<span style={{background:bg,color,padding:"2px 9px",borderRadius:20,fontSize:11,fontWeight:600,whiteSpace:"nowrap"}}>{text}</span>;}
-function Toast({msg,onClose}){useEffect(()=>{const t=setTimeout(onClose,3200);return()=>clearTimeout(t);},[]);return<div style={{position:"fixed",bottom:24,right:24,background:N,color:W,padding:"12px 22px",borderRadius:8,boxShadow:"0 6px 24px rgba(0,0,0,.25)",fontSize:13,zIndex:9999,borderLeft:`4px solid ${G}`}}>✓ {msg}</div>;}
+function Toast({msg,onClose}){useEffect(()=>{const t=setTimeout(onClose,3500);return()=>clearTimeout(t);},[]);return<div style={{position:"fixed",bottom:24,right:24,background:N,color:W,padding:"12px 22px",borderRadius:8,boxShadow:"0 6px 24px rgba(0,0,0,.25)",fontSize:13,zIndex:9999,borderLeft:`4px solid ${G}`}}>✓ {msg}</div>;}
 function KPI({label,value,accent=N}){return<div style={{background:W,borderRadius:8,padding:"16px 18px",borderLeft:`4px solid ${accent}`,boxShadow:"0 1px 6px rgba(0,0,0,.07)"}}><div style={{fontSize:26,fontWeight:700,color:accent,fontFamily:"Libre Baskerville,serif",lineHeight:1}}>{value}</div><div style={{fontSize:11,color:MU,marginTop:5}}>{label}</div></div>;}
 function SH({title,action}){return<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 14px",background:"#F1EDE4",borderRadius:6,marginBottom:12,borderLeft:`3px solid ${G}`}}><span style={{fontWeight:700,fontSize:13,color:N}}>{title}</span>{action}</div>;}
 function LBL({ch}){return<label style={{fontSize:11,fontWeight:600,color:N,display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:".5px"}}>{ch}</label>;}
-function Divider(){return<div style={{height:1,background:"#E5E7EB",margin:"18px 0"}}/>;}
 
-/* ── BOOK FORM (add + edit) ──────────────────────────────────── */
-const BLANK={titulo:"",autor:"",isbn:"",pN:"",pU:"",ano:"",si:"",me:"0",cat:"Historia y Política",catCustom:""};
-function libroToForm(l){
-  return{titulo:l.titulo||"",autor:l.autor||"",isbn:l.isbn||"",pN:l.pN??""  ,pU:l.pU??"",ano:l.ano??"",si:l.si??"",me:l.me??"0",cat:CATS.includes(l.cat)?l.cat:"__otra__",catCustom:CATS.includes(l.cat)?"":l.cat};
-}
-function formToLibro(f,id){
-  const cat=f.cat==="__otra__"?(f.catCustom.trim()||"Sin categoría"):f.cat;
-  return{id,titulo:f.titulo.trim(),autor:f.autor.trim(),isbn:f.isbn.trim()||null,pN:toNum(f.pN),pU:toNum(f.pU),ano:toNum(f.ano),si:parseInt(f.si)||0,me:parseInt(f.me)||0,cat};
+/* ── BODEGAS SECTION (editable) ── */
+function BodegasSection({bodegas,onChange}){
+  const total=BOD_NAMES.reduce((s,k)=>s+(bodegas[k]||0),0);
+  return<div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:8}}>
+      {BOD_NAMES.map(k=>{
+        const v=bodegas[k]||0;
+        return<div key={k} style={{background:v>0?"#EFF6FF":"#F9FAFB",border:`1px solid ${v>0?"#BFDBFE":"#E5E7EB"}`,borderRadius:8,padding:"10px 12px"}}>
+          <div style={{fontSize:10,fontWeight:700,color:MU,textTransform:"uppercase",letterSpacing:".5px",marginBottom:6}}>{k}</div>
+          {onChange
+            ?<Inp type="number" value={v} onChange={val=>onChange({...bodegas,[k]:parseInt(val)||0})} min="0" style={{width:"100%",padding:"4px 8px",fontSize:14,fontWeight:700,color:v>0?"#2563EB":MU}}/>
+            :<div style={{fontSize:20,fontWeight:700,color:v>0?"#2563EB":MU,fontFamily:"Libre Baskerville,serif"}}>{v}</div>
+          }
+        </div>;
+      })}
+    </div>
+    <div style={{fontSize:11,color:MU,textAlign:"right"}}>Total en bodegas: <strong style={{color:N}}>{total}</strong></div>
+  </div>;
 }
 
-function BookForm({initial=BLANK,onSave,onCancel,isEdit=false}){
-  const[f,setF]=useState(initial);
-  const[err,setErr]=useState("");
-  const set=k=>v=>setF(p=>({...p,[k]:v}));
-  function submit(){
-    if(!f.titulo.trim()){setErr("El título es obligatorio.");return;}
-    if(f.si===""||isNaN(parseInt(f.si))){setErr("El stock inicial es obligatorio.");return;}
-    if(f.cat==="__otra__"&&!f.catCustom.trim()){setErr("Escribe el nombre de la categoría.");return;}
-    setErr("");
-    onSave(f);
-  }
-  const G2=({col=2,children})=><div style={{gridColumn:`1/${col+1}`}}>{children}</div>;
-  return(
-    <div style={{background:"#F8F9FF",border:"1px solid #C7D2FE",borderRadius:8,padding:18}}>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
-        {/* Título — full width */}
-        <div style={{gridColumn:"1/-1"}}>
-          <LBL ch="Título *"/>
-          <Inp value={f.titulo} onChange={set("titulo")} placeholder="Título completo del libro" style={{width:"100%"}}/>
-        </div>
-        {/* Autor — full width */}
-        <div style={{gridColumn:"1/-1"}}>
-          <LBL ch="Autor(es)"/>
-          <Inp value={f.autor} onChange={set("autor")} placeholder="Nombre(s) del autor o autores" style={{width:"100%"}}/>
-        </div>
-        {/* ISBN */}
-        <div>
-          <LBL ch="ISBN"/>
-          <Inp value={f.isbn} onChange={set("isbn")} placeholder="Ej: 9789566115786" style={{width:"100%"}}/>
-        </div>
-        {/* Año */}
-        <div>
-          <LBL ch="Año de publicación"/>
-          <Inp type="number" value={f.ano} onChange={set("ano")} placeholder="Ej: 2024" min="1900" max="2099" style={{width:"100%"}}/>
-        </div>
-        {/* Precio Normal */}
-        <div>
-          <LBL ch="Precio Normal ($)"/>
-          <Inp type="number" value={f.pN} onChange={set("pN")} placeholder="Ej: 18000" min="0" style={{width:"100%"}}/>
-        </div>
-        {/* Precio USS */}
-        <div>
-          <LBL ch="Precio USS ($)"/>
-          <Inp type="number" value={f.pU} onChange={set("pU")} placeholder="Ej: 14400" min="0" style={{width:"100%"}}/>
-        </div>
-        {/* Stock inicial */}
-        <div>
-          <LBL ch={isEdit?"Stock inicial * (afecta disponible)":"Stock inicial *"}/>
-          <Inp type="number" value={f.si} onChange={set("si")} placeholder="Ej: 200" min="0" style={{width:"100%"}}/>
-          {isEdit&&<div style={{fontSize:11,color:OR,marginTop:3}}>⚠ Modificar esto recalcula el stock disponible.</div>}
-        </div>
-        {/* Mal estado */}
-        <div>
-          <LBL ch="Ejemplares en mal estado"/>
-          <Inp type="number" value={f.me} onChange={set("me")} placeholder="Ej: 0" min="0" style={{width:"100%"}}/>
-        </div>
-        {/* Categoría */}
-        <div style={{gridColumn:"1/-1"}}>
-          <LBL ch="Categoría"/>
-          <div style={{display:"flex",gap:8}}>
-            <Sel value={f.cat} onChange={set("cat")}
-              options={[...CATS.map(c=>({v:c,l:c})),{v:"__otra__",l:"Otra categoría…"}]}
-              style={{flex:1}}/>
-            {f.cat==="__otra__"&&<Inp value={f.catCustom} onChange={set("catCustom")} placeholder="Nombre de categoría" style={{flex:1}}/>}
-          </div>
-        </div>
+/* ── SETUP SCREEN ── */
+function SetupScreen({onSave}){
+  const[clientId,setClientId]=useState("");
+  const[filePath,setFilePath]=useState(DEFAULT_PATH);
+  const currentUrl=window.location.origin+window.location.pathname;
+  return<div style={{minHeight:"100vh",background:CR,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+    <div style={{background:W,borderRadius:12,padding:40,maxWidth:600,width:"100%",boxShadow:"0 8px 40px rgba(16,43,66,.12)"}}>
+      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:28,paddingBottom:20,borderBottom:"1px solid #E5E7EB"}}>
+        <div style={{width:3,height:40,background:G,borderRadius:2}}/>
+        <div><div style={{color:MU,fontSize:10,fontWeight:600,letterSpacing:"2px",textTransform:"uppercase"}}>Universidad San Sebastián</div><div style={{color:N,fontSize:18,fontWeight:700,fontFamily:"Libre Baskerville,serif"}}>Inventario Ediciones USS</div></div>
       </div>
-      {err&&<div style={{color:RD,fontSize:12,marginBottom:10}}>{err}</div>}
-      <div style={{display:"flex",gap:10}}>
-        <Btn v="green" onClick={submit}>{isEdit?"✓ Guardar cambios":"+ Agregar libro"}</Btn>
-        <Btn v="ghost" onClick={onCancel}>Cancelar</Btn>
+      <h3 style={{color:N,fontSize:15,marginBottom:6}}>Conectar con OneDrive</h3>
+      <p style={{color:MU,fontSize:13,marginBottom:24,lineHeight:1.6}}>Los datos quedarán en un Excel real en OneDrive — visible y editable por todo tu equipo.</p>
+      <div style={{marginBottom:18}}><LBL ch="Azure App Client ID *"/><Inp value={clientId} onChange={setClientId} placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" style={{width:"100%",fontFamily:"monospace"}}/></div>
+      <div style={{marginBottom:24}}><LBL ch="Ruta del archivo Excel en OneDrive"/><Inp value={filePath} onChange={setFilePath} placeholder={DEFAULT_PATH} style={{width:"100%"}}/><div style={{fontSize:11,color:MU,marginTop:4}}>El archivo y sus hojas se crean automáticamente en la primera conexión.</div></div>
+      <Btn onClick={()=>clientId.trim()&&onSave({clientId:clientId.trim(),filePath:filePath.trim()||DEFAULT_PATH})} disabled={!clientId.trim()}>Guardar y conectar →</Btn>
+      <div style={{marginTop:28,padding:20,background:"#F8F9FF",borderRadius:8,border:"1px solid #E0E7FF"}}>
+        <div style={{fontWeight:700,color:N,fontSize:13,marginBottom:12}}>📋 Instrucciones: Registrar app en Azure (5 min)</div>
+        <ol style={{fontSize:12,color:MU,lineHeight:1.8,paddingLeft:18}}>
+          <li>Ve a <a href="https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps/ApplicationsListBlade" target="_blank">portal.azure.com → App registrations</a> e inicia sesión.</li>
+          <li>Clic en <strong style={{color:N}}>+ New registration</strong>.</li>
+          <li>Nombre: <code>Inventario Ediciones USS</code>.</li>
+          <li>Account types: <strong style={{color:N}}>Accounts in any organizational directory and personal Microsoft accounts</strong>.</li>
+          <li>Redirect URI: <strong style={{color:N}}>Single-page application (SPA)</strong> → ingresa exactamente:<br/><code style={{background:"#EEF2FF",display:"inline-block",marginTop:4,padding:"3px 8px",wordBreak:"break-all"}}>{currentUrl}</code></li>
+          <li>Clic en <strong style={{color:N}}>Register</strong>. Copia el <strong style={{color:N}}>Application (client) ID</strong> y pégalo arriba.</li>
+          <li>Ve a <strong style={{color:N}}>API permissions → Add a permission → Microsoft Graph → Delegated</strong> → activa <code>Files.ReadWrite</code>.</li>
+        </ol>
       </div>
     </div>
-  );
+  </div>;
 }
 
-/* ── BOOK DETAIL PANEL ───────────────────────────────────────── */
+/* ── BOOK FORM ── */
+const BLANK={titulo:"",autor:"",isbn:"",pN:"",pU:"",ano:"",si:"",me:"0",cat:"Historia y Política",catCustom:""};
+function libroToForm(l){return{titulo:l.titulo||"",autor:l.autor||"",isbn:l.isbn||"",pN:l.pN??"",pU:l.pU??"",ano:l.ano??"",si:l.si??"",me:l.me??"0",cat:CATS.includes(l.cat)?l.cat:"__otra__",catCustom:CATS.includes(l.cat)?"":l.cat};}
+function formToLibro(f,id,bodegas){const cat=f.cat==="__otra__"?(f.catCustom.trim()||"Sin categoría"):f.cat;return{id,titulo:f.titulo.trim(),autor:f.autor.trim(),isbn:f.isbn.trim()||null,pN:toNum(f.pN),pU:toNum(f.pU),ano:toNum(f.ano),si:parseInt(f.si)||0,me:parseInt(f.me)||0,cat,bodegas:bodegas||BLANK_BOD()};}
+function BookForm({initial=BLANK,initBod,onSave,onCancel,isEdit=false}){
+  const[f,setF]=useState(initial);
+  const[bod,setBod]=useState(initBod||BLANK_BOD());
+  const[err,setErr]=useState("");
+  const set=k=>v=>setF(p=>({...p,[k]:v}));
+  function submit(){if(!f.titulo.trim()){setErr("El título es obligatorio.");return;}if(f.si===""||isNaN(parseInt(f.si))){setErr("El stock inicial es obligatorio.");return;}if(f.cat==="__otra__"&&!f.catCustom.trim()){setErr("Escribe la categoría.");return;}setErr("");onSave(f,bod);}
+  return<div style={{background:"#F8F9FF",border:"1px solid #C7D2FE",borderRadius:8,padding:18}}>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+      <div style={{gridColumn:"1/-1"}}><LBL ch="Título *"/><Inp value={f.titulo} onChange={set("titulo")} placeholder="Título completo" style={{width:"100%"}}/></div>
+      <div style={{gridColumn:"1/-1"}}><LBL ch="Autor(es)"/><Inp value={f.autor} onChange={set("autor")} placeholder="Nombre del autor o autores" style={{width:"100%"}}/></div>
+      <div><LBL ch="ISBN"/><Inp value={f.isbn} onChange={set("isbn")} placeholder="Ej: 9789566115786" style={{width:"100%"}}/></div>
+      <div><LBL ch="Año"/><Inp type="number" value={f.ano} onChange={set("ano")} placeholder="Ej: 2024" style={{width:"100%"}}/></div>
+      <div><LBL ch="Precio Normal ($)"/><Inp type="number" value={f.pN} onChange={set("pN")} min="0" style={{width:"100%"}}/></div>
+      <div><LBL ch="Precio USS ($)"/><Inp type="number" value={f.pU} onChange={set("pU")} min="0" style={{width:"100%"}}/></div>
+      <div><LBL ch={isEdit?"Stock inicial *":"Stock inicial *"}/><Inp type="number" value={f.si} onChange={set("si")} min="0" style={{width:"100%"}}/>{isEdit&&<div style={{fontSize:11,color:OR,marginTop:2}}>⚠ Modificar esto recalcula el disponible.</div>}</div>
+      <div><LBL ch="Mal estado"/><Inp type="number" value={f.me} onChange={set("me")} min="0" style={{width:"100%"}}/></div>
+      <div style={{gridColumn:"1/-1"}}>
+        <LBL ch="Categoría"/>
+        <div style={{display:"flex",gap:8}}>
+          <Sel value={f.cat} onChange={set("cat")} options={[...CATS.map(c=>({v:c,l:c})),{v:"__otra__",l:"Otra categoría…"}]} style={{flex:1}}/>
+          {f.cat==="__otra__"&&<Inp value={f.catCustom} onChange={set("catCustom")} placeholder="Nueva categoría" style={{flex:1}}/>}
+        </div>
+      </div>
+      <div style={{gridColumn:"1/-1"}}>
+        <LBL ch="Stock por bodega"/>
+        <BodegasSection bodegas={bod} onChange={setBod}/>
+      </div>
+    </div>
+    {err&&<div style={{color:RD,fontSize:12,marginBottom:10}}>{err}</div>}
+    <div style={{display:"flex",gap:10}}>
+      <Btn v="green" onClick={submit}>{isEdit?"✓ Guardar cambios":"+ Agregar libro"}</Btn>
+      <Btn v="ghost" onClick={onCancel}>Cancelar</Btn>
+    </div>
+  </div>;
+}
+
+/* ── BOOK DETAIL PANEL ── */
 function BookDetailPanel({libro,regalos,consignaciones,libros,onSaveRegalos,onSaveConsignaciones,onSaveLibros,onClose}){
   const ref=useRef(null);
   const[toast,setToast]=useState("");
   const[editingInfo,setEditingInfo]=useState(false);
-
   useEffect(()=>{ref.current?.scrollIntoView({behavior:"smooth",block:"nearest"});},[]);
-
   const s=calcStock(libro.id,regalos,consignaciones,libros);
   const dispColor=s.disp<=0?RD:s.disp<20?"#D97706":GR;
+  function handleSaveInfo(f,bod){onSaveLibros(libros.map(l=>l.id===libro.id?formToLibro(f,libro.id,bod):l));setEditingInfo(false);setToast("Información actualizada.");}
+  function handleDelete(){const hasM=regalos.some(r=>r.libroId===libro.id)||consignaciones.some(c=>c.libroId===libro.id);if(window.confirm(hasM?"Este libro tiene movimientos. ¿Confirmas eliminar?":"¿Eliminar libro del catálogo?")){onSaveLibros(libros.filter(l=>l.id!==libro.id));onClose();}}
 
-  /* ── Edit book info ── */
-  function handleSaveInfo(f){
-    const updated=formToLibro(f,libro.id);
-    onSaveLibros(libros.map(l=>l.id===libro.id?updated:l));
-    setEditingInfo(false);
-    setToast("Información actualizada.");
-  }
-  function handleDelete(){
-    const hasMovs=regalos.some(r=>r.libroId===libro.id)||consignaciones.some(c=>c.libroId===libro.id);
-    const msg=hasMovs
-      ?"Este libro tiene regalos o consignaciones registrados. ¿Confirmas que deseas eliminarlo? Los movimientos NO se borrarán y quedarán huérfanos."
-      :"¿Eliminar este libro del catálogo? Esta acción no se puede deshacer.";
-    if(window.confirm(msg)){onSaveLibros(libros.filter(l=>l.id!==libro.id));onClose();}
-  }
-
-  /* ── Consignaciones ── */
   const[showCF,setShowCF]=useState(false);
   const[cf,setCf]=useState({distribuidor:"",cantEnv:"",fechaEnv:new Date().toISOString().slice(0,10),notas:""});
   const[cErr,setCErr]=useState("");
   const[editCId,setEditCId]=useState(null);
   const[ecf,setEcf]=useState({});
   const misCons=consignaciones.filter(c=>c.libroId===libro.id).sort((a,b)=>b.fechaEnv.localeCompare(a.fechaEnv));
+  function subCons(){if(!cf.distribuidor.trim()||!cf.cantEnv||!cf.fechaEnv){setCErr("Completa todos los campos.");return;}const c=parseInt(cf.cantEnv);if(!c||c<=0){setCErr("Cantidad inválida.");return;}const fr=calcStock(libro.id,regalos,consignaciones,libros);if(c>fr.disp){setCErr(`Disponible: ${fr.disp} ej.`);return;}onSaveConsignaciones([...consignaciones,{id:uid(),libroId:libro.id,distribuidor:cf.distribuidor.trim(),cantEnv:c,cantVend:0,cantDev:0,fechaEnv:cf.fechaEnv,notas:cf.notas,estado:"activa"}]);setToast("Consignación registrada.");setCf({distribuidor:"",cantEnv:"",fechaEnv:new Date().toISOString().slice(0,10),notas:""});setShowCF(false);setCErr("");}
+  function saveCons(id){const c=consignaciones.find(x=>x.id===id);const v=parseInt(ecf.cantVend)||0,d=parseInt(ecf.cantDev)||0;if(v+d>c.cantEnv){alert("Vendidos + devueltos no puede superar lo enviado.");return;}onSaveConsignaciones(consignaciones.map(x=>x.id===id?{...x,cantVend:v,cantDev:d,estado:ecf.estado}:x));setEditCId(null);setToast("Consignación actualizada.");}
 
-  function subCons(){
-    if(!cf.distribuidor.trim()||!cf.cantEnv||!cf.fechaEnv){setCErr("Completa todos los campos.");return;}
-    const c=parseInt(cf.cantEnv);if(!c||c<=0){setCErr("Cantidad inválida.");return;}
-    const fresh=calcStock(libro.id,regalos,consignaciones,libros);
-    if(c>fresh.disp){setCErr(`Stock insuficiente. Disponible: ${fresh.disp} ej.`);return;}
-    onSaveConsignaciones([...consignaciones,{id:uid(),libroId:libro.id,distribuidor:cf.distribuidor.trim(),cantEnv:c,cantVend:0,cantDev:0,fechaEnv:cf.fechaEnv,notas:cf.notas,estado:"activa"}]);
-    setToast("Consignación registrada.");setCf({distribuidor:"",cantEnv:"",fechaEnv:new Date().toISOString().slice(0,10),notas:""});setShowCF(false);setCErr("");
-  }
-  function saveCons(id){
-    const c=consignaciones.find(x=>x.id===id);
-    const v=parseInt(ecf.cantVend)||0,d=parseInt(ecf.cantDev)||0;
-    if(v+d>c.cantEnv){alert("Vendidos + devueltos no puede superar lo enviado.");return;}
-    onSaveConsignaciones(consignaciones.map(x=>x.id===id?{...x,cantVend:v,cantDev:d,estado:ecf.estado}:x));
-    setEditCId(null);setToast("Consignación actualizada.");
-  }
-
-  /* ── Regalos ── */
   const[showRF,setShowRF]=useState(false);
   const[rf,setRf]=useState({cantidad:"",fecha:new Date().toISOString().slice(0,10),stakeholder:"",nota:""});
   const[rErr,setRErr]=useState("");
   const misRegalos=regalos.filter(r=>r.libroId===libro.id).sort((a,b)=>b.fecha.localeCompare(a.fecha));
-
-  function subReg(){
-    if(!rf.cantidad||!rf.fecha||!rf.stakeholder.trim()){setRErr("Completa todos los campos.");return;}
-    const c=parseInt(rf.cantidad);if(!c||c<=0){setRErr("Cantidad inválida.");return;}
-    const fresh=calcStock(libro.id,regalos,consignaciones,libros);
-    if(c>fresh.disp){setRErr(`Stock insuficiente. Disponible: ${fresh.disp} ej.`);return;}
-    onSaveRegalos([...regalos,{id:uid(),libroId:libro.id,cantidad:c,fecha:rf.fecha,stakeholder:rf.stakeholder.trim(),nota:rf.nota}]);
-    setToast(`${c} ejemplares registrados como regalo.`);setRf({cantidad:"",fecha:new Date().toISOString().slice(0,10),stakeholder:"",nota:""});setShowRF(false);setRErr("");
-  }
+  function subReg(){if(!rf.cantidad||!rf.fecha||!rf.stakeholder.trim()){setRErr("Completa todos los campos.");return;}const c=parseInt(rf.cantidad);if(!c||c<=0){setRErr("Cantidad inválida.");return;}const fr=calcStock(libro.id,regalos,consignaciones,libros);if(c>fr.disp){setRErr(`Disponible: ${fr.disp} ej.`);return;}onSaveRegalos([...regalos,{id:uid(),libroId:libro.id,cantidad:c,fecha:rf.fecha,stakeholder:rf.stakeholder.trim(),nota:rf.nota}]);setToast(`${c} ejs. registrados como regalo.`);setRf({cantidad:"",fecha:new Date().toISOString().slice(0,10),stakeholder:"",nota:""});setShowRF(false);setRErr("");}
 
   const EC={activa:{bg:BLL,cl:BL},liquidada:{bg:GRL,cl:GR},devuelta:{bg:ORL,cl:OR}};
 
-  return(
-    <div ref={ref} className="panel-in" style={{background:W,border:`2px solid ${G}`,borderRadius:10,overflow:"hidden",boxShadow:"0 8px 32px rgba(16,43,66,.13)",marginBottom:8}}>
-      {toast&&<Toast msg={toast} onClose={()=>setToast("")}/>}
-
-      {/* Header */}
-      <div style={{background:N,padding:"16px 22px"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12}}>
-          <div style={{flex:1}}>
-            <div style={{color:G,fontSize:10,fontWeight:600,letterSpacing:"2px",textTransform:"uppercase",marginBottom:4}}>{libro.cat} · {libro.ano||"Sin año"}</div>
-            <h2 style={{color:W,fontSize:15,fontFamily:"Libre Baskerville,serif",lineHeight:1.35,margin:0}}>{libro.titulo}</h2>
-            <div style={{color:"rgba(255,255,255,.65)",fontSize:13,marginTop:4}}>{libro.autor}</div>
-            <div style={{display:"flex",gap:18,marginTop:8,flexWrap:"wrap",fontSize:12,color:"rgba(255,255,255,.5)"}}>
-              <span><span style={{color:G}}>ISBN:</span> {libro.isbn||"—"}</span>
-              <span><span style={{color:G}}>P. Normal:</span> {f$(libro.pN)}</span>
-              <span><span style={{color:G}}>P. USS:</span> {f$(libro.pU)}</span>
-            </div>
-          </div>
-          <div style={{display:"flex",gap:8,flexShrink:0,alignItems:"flex-start"}}>
-            <Btn sm v="secondary" onClick={()=>{setEditingInfo(e=>!e);}} style={{background:editingInfo?G2:"rgba(207,180,124,.2)",color:G,border:`1px solid ${G}`}}>
-              {editingInfo?"Cancelar edición":"✏ Editar info"}
-            </Btn>
-            <button onClick={onClose} style={{background:"rgba(255,255,255,.15)",border:"none",cursor:"pointer",color:W,fontSize:16,width:30,height:30,borderRadius:6,display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
-          </div>
-        </div>
-      </div>
-
-      {/* Edit info form */}
-      {editingInfo&&(
-        <div style={{padding:"16px 22px",background:"#F0F4FF",borderBottom:`1px solid #C7D2FE`}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-            <span style={{fontWeight:700,fontSize:14,color:N}}>Editar información del libro</span>
-            <Btn sm v="danger" onClick={handleDelete}>🗑 Eliminar libro</Btn>
-          </div>
-          <BookForm initial={libroToForm(libro)} onSave={handleSaveInfo} onCancel={()=>setEditingInfo(false)} isEdit={true}/>
-        </div>
-      )}
-
-      {/* Stock summary */}
-      <div style={{padding:"14px 22px",background:"#F9F7F3",borderBottom:`1px solid ${G2}`}}>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10}}>
-          {[["Stock inicial",libro.si,N],["Mal estado",s.malEstado,RD],["Regalados",s.regalados,G],["En consignación",s.enConsig,"#2563EB"],["Disponible",s.disp,dispColor]].map(([lbl,val,col])=>
-            <div key={lbl} style={{textAlign:"center",padding:"11px 6px",background:W,borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,.05)"}}>
-              <div style={{fontSize:22,fontWeight:700,color:col,fontFamily:"Libre Baskerville,serif"}}>{val}</div>
-              <div style={{fontSize:11,color:MU,marginTop:3}}>{lbl}</div>
-            </div>
-          )}
-        </div>
-        {s.disp<20&&s.disp>=0&&<div style={{marginTop:10,padding:"7px 14px",background:s.disp===0?RDL:ORL,borderRadius:6,fontSize:12,color:s.disp===0?RD:OR,fontWeight:500}}>{s.disp===0?"⚠ Título agotado.":`⚠ Stock bajo — solo ${s.disp} ejemplares disponibles.`}</div>}
-      </div>
-
-      {/* Consig + Regalos */}
-      <div style={{padding:"20px 22px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
-
-        {/* CONSIGNACIONES */}
-        <div>
-          <SH title="📦 Consignaciones" action={<Btn sm v="blue" onClick={()=>{setShowCF(o=>!o);setCErr("");}}>{showCF?"Cancelar":"+ Nueva"}</Btn>}/>
-          {showCF&&(
-            <div style={{background:"#EFF6FF",border:"1px solid #BFDBFE",borderRadius:8,padding:14,marginBottom:14}}>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
-                <div style={{gridColumn:"1/-1"}}><LBL ch="Distribuidora *"/><Inp value={cf.distribuidor} onChange={v=>setCf({...cf,distribuidor:v})} placeholder="Ej: Librería Antártica…" style={{width:"100%"}}/></div>
-                <div><LBL ch="Cantidad *"/><Inp type="number" value={cf.cantEnv} onChange={v=>setCf({...cf,cantEnv:v})} placeholder="Ej: 20" min="1" style={{width:"100%"}}/></div>
-                <div><LBL ch="Fecha envío *"/><Inp type="date" value={cf.fechaEnv} onChange={v=>setCf({...cf,fechaEnv:v})} style={{width:"100%"}}/></div>
-                <div style={{gridColumn:"1/-1"}}><LBL ch="Notas"/><Inp value={cf.notas} onChange={v=>setCf({...cf,notas:v})} placeholder="N° contrato, contacto…" style={{width:"100%"}}/></div>
-              </div>
-              {cErr&&<div style={{color:RD,fontSize:12,marginBottom:8}}>{cErr}</div>}
-              <Btn onClick={subCons}>Guardar consignación</Btn>
-            </div>
-          )}
-          {misCons.length===0
-            ?<p style={{fontSize:13,color:MU,textAlign:"center",padding:"20px 0"}}>Sin consignaciones para este título.</p>
-            :misCons.map(c=>{
-              const neto=c.cantEnv-(c.cantVend||0)-(c.cantDev||0);
-              const ec=EC[c.estado]||{bg:"#F3F4F6",cl:MU};
-              const isE=editCId===c.id;
-              return<div key={c.id} style={{border:"1px solid #E5E7EB",borderRadius:8,padding:"12px 14px",marginBottom:10,background:"#FAFAFA"}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
-                  <div><div style={{fontWeight:600,color:N,fontSize:13}}>{c.distribuidor}</div><div style={{fontSize:11,color:MU}}>{fD(c.fechaEnv)}{c.notas?` · ${c.notas}`:""}</div></div>
-                  <Badge text={c.estado.charAt(0).toUpperCase()+c.estado.slice(1)} color={ec.cl} bg={ec.bg}/>
-                </div>
-                <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:10}}>
-                  {[["Enviado",c.cantEnv,"#374151"],["Vendido",c.cantVend||0,GR],["Devuelto",c.cantDev||0,OR],["En consig.",neto,"#2563EB"]].map(([lbl,val,col])=>
-                    <div key={lbl} style={{textAlign:"center",background:W,border:"1px solid #E5E7EB",borderRadius:6,padding:"5px 4px"}}>
-                      <div style={{fontSize:15,fontWeight:700,color:col}}>{val}</div>
-                      <div style={{fontSize:10,color:MU}}>{lbl}</div>
-                    </div>
-                  )}
-                </div>
-                {isE?(
-                  <div>
-                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:8}}>
-                      <div><LBL ch="Vendidos"/><Inp type="number" value={ecf.cantVend} onChange={v=>setEcf({...ecf,cantVend:v})} style={{width:"100%"}} min="0"/></div>
-                      <div><LBL ch="Devueltos"/><Inp type="number" value={ecf.cantDev} onChange={v=>setEcf({...ecf,cantDev:v})} style={{width:"100%"}} min="0"/></div>
-                      <div><LBL ch="Estado"/><Sel value={ecf.estado} onChange={v=>setEcf({...ecf,estado:v})} options={[{v:"activa",l:"Activa"},{v:"liquidada",l:"Liquidada"},{v:"devuelta",l:"Devuelta"}]} style={{width:"100%",padding:"6px 8px"}}/></div>
-                    </div>
-                    <div style={{display:"flex",gap:8}}><Btn sm onClick={()=>saveCons(c.id)}>✓ Guardar</Btn><Btn sm v="ghost" onClick={()=>setEditCId(null)}>Cancelar</Btn></div>
-                  </div>
-                ):(
-                  <div style={{display:"flex",gap:8}}>
-                    <Btn sm v="secondary" onClick={()=>{setEditCId(c.id);setEcf({cantVend:c.cantVend||0,cantDev:c.cantDev||0,estado:c.estado});}}>Actualizar</Btn>
-                    <Btn sm v="danger" onClick={()=>{if(window.confirm("¿Eliminar consignación?"))onSaveConsignaciones(consignaciones.filter(x=>x.id!==c.id));}}>Eliminar</Btn>
-                  </div>
-                )}
-              </div>;
-            })
-          }
-        </div>
-
-        {/* REGALOS */}
-        <div>
-          <SH title="🎁 Regalos / Donaciones" action={<Btn sm v="secondary" onClick={()=>{setShowRF(o=>!o);setRErr("");}}>{showRF?"Cancelar":"+ Nuevo"}</Btn>}/>
-          {showRF&&(
-            <div style={{background:"#FFFBF0",border:`1px solid ${G2}`,borderRadius:8,padding:14,marginBottom:14}}>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
-                <div><LBL ch="Cantidad *"/><Inp type="number" value={rf.cantidad} onChange={v=>setRf({...rf,cantidad:v})} placeholder="Ej: 3" min="1" style={{width:"100%"}}/></div>
-                <div><LBL ch="Fecha *"/><Inp type="date" value={rf.fecha} onChange={v=>setRf({...rf,fecha:v})} style={{width:"100%"}}/></div>
-                <div style={{gridColumn:"1/-1"}}><LBL ch="Stakeholder *"/><Inp value={rf.stakeholder} onChange={v=>setRf({...rf,stakeholder:v})} placeholder="Ej: Ministerio de Educación…" style={{width:"100%"}}/></div>
-                <div style={{gridColumn:"1/-1"}}><LBL ch="Nota (opcional)"/><Inp value={rf.nota} onChange={v=>setRf({...rf,nota:v})} placeholder="Contexto del regalo…" style={{width:"100%"}}/></div>
-              </div>
-              {rErr&&<div style={{color:RD,fontSize:12,marginBottom:8}}>{rErr}</div>}
-              <Btn v="secondary" onClick={subReg}>Guardar regalo</Btn>
-            </div>
-          )}
-          {misRegalos.length===0
-            ?<p style={{fontSize:13,color:MU,textAlign:"center",padding:"20px 0"}}>Sin regalos para este título.</p>
-            :misRegalos.map((r,i)=>(
-              <div key={r.id} style={{border:"1px solid #E5E7EB",borderRadius:8,padding:"12px 14px",marginBottom:10,background:i%2===0?"#FAFAFA":W}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-                  <div style={{flex:1}}><div style={{fontWeight:600,color:N,fontSize:13}}>{r.stakeholder}</div><div style={{fontSize:11,color:MU,marginTop:2}}>{fD(r.fecha)}{r.nota?` · ${r.nota}`:""}</div></div>
-                  <div style={{display:"flex",alignItems:"center",gap:8}}>
-                    <span style={{fontWeight:700,fontSize:17,color:G,fontFamily:"Libre Baskerville,serif"}}>{r.cantidad}</span>
-                    <span style={{fontSize:11,color:MU}}>ej.</span>
-                    <Btn sm v="danger" onClick={()=>{if(window.confirm("¿Eliminar?"))onSaveRegalos(regalos.filter(x=>x.id!==r.id));}}>✕</Btn>
-                  </div>
-                </div>
-              </div>
-            ))
-          }
-          {misRegalos.length>0&&<div style={{marginTop:6,padding:"7px 12px",background:G2,borderRadius:6,fontSize:12,color:N,textAlign:"right"}}>Total donado: <strong>{misRegalos.reduce((s,r)=>s+r.cantidad,0)} ejemplares</strong></div>}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ── CATÁLOGO ────────────────────────────────────────────────── */
-function Catalogo({libros,regalos,consignaciones,onSaveLibros,onSaveRegalos,onSaveConsignaciones}){
-  const[q,setQ]=useState(""), [cat,setCat]=useState(""), [selId,setSelId]=useState(null);
-  const[addOpen,setAddOpen]=useState(false);
-  const[toast,setToast]=useState("");
-  const cats=[...new Set(libros.map(l=>l.cat))].sort();
-
-  const filtered=useMemo(()=>libros.filter(l=>{
-    const qL=q.toLowerCase();
-    return(!q||l.titulo.toLowerCase().includes(qL)||l.autor.toLowerCase().includes(qL)||(l.isbn||"").includes(qL))&&(!cat||l.cat===cat);
-  }),[q,cat,libros]);
-
-  function handleAdd(f){
-    const nuevo=formToLibro(f,uid());
-    onSaveLibros([...libros,nuevo]);
-    setAddOpen(false);
-    setToast(`"${trunc(nuevo.titulo,40)}" agregado al catálogo.`);
-  }
-
-  const TH=({ch,center})=><th style={{padding:"10px 12px",textAlign:center?"center":"left",fontWeight:600,whiteSpace:"nowrap",color:W,fontSize:13}}>{ch}</th>;
-
-  return<div>
+  return<div ref={ref} className="pin" style={{background:W,border:`2px solid ${G}`,borderRadius:10,overflow:"hidden",boxShadow:"0 8px 32px rgba(16,43,66,.13)",marginBottom:8}}>
     {toast&&<Toast msg={toast} onClose={()=>setToast("")}/>}
-
-    {/* Toolbar */}
-    <div style={{display:"flex",gap:10,marginBottom:18,flexWrap:"wrap",alignItems:"center"}}>
-      <Inp value={q} onChange={setQ} placeholder="Buscar título, autor o ISBN…" style={{flex:1,minWidth:220}}/>
-      <Sel value={cat} onChange={setCat} placeholder="Todas las categorías" options={cats.map(c=>({v:c,l:c}))} style={{minWidth:200}}/>
-      {(q||cat)&&<Btn v="ghost" onClick={()=>{setQ("");setCat("");}}>Limpiar</Btn>}
-      <Btn v="green" onClick={()=>{setAddOpen(o=>!o);setSelId(null);}}>
-        {addOpen?"✕ Cancelar":"+ Agregar libro"}
-      </Btn>
-      <span style={{fontSize:11,color:MU,marginLeft:"auto"}}>{filtered.length}/{libros.length} títulos · <span style={{color:G,fontWeight:600}}>clic en fila para gestionar</span></span>
-    </div>
-
-    {/* Add book form */}
-    {addOpen&&(
-      <div className="panel-in" style={{marginBottom:18}}>
-        <div style={{background:N,padding:"11px 18px",borderRadius:"8px 8px 0 0"}}><span style={{color:W,fontWeight:600,fontSize:14}}>Agregar nuevo título al catálogo</span></div>
-        <div style={{padding:18,background:W,borderRadius:"0 0 8px 8px",border:`1px solid #E5E7EB`,borderTop:"none"}}>
-          <BookForm onSave={handleAdd} onCancel={()=>setAddOpen(false)}/>
+    {/* Header */}
+    <div style={{background:N,padding:"16px 22px"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12}}>
+        <div style={{flex:1}}>
+          <div style={{color:G,fontSize:10,fontWeight:600,letterSpacing:"2px",textTransform:"uppercase",marginBottom:4}}>{libro.cat} · {libro.ano||"Sin año"}</div>
+          <h2 style={{color:W,fontSize:15,fontFamily:"Libre Baskerville,serif",lineHeight:1.35,margin:0}}>{libro.titulo}</h2>
+          <div style={{color:"rgba(255,255,255,.65)",fontSize:13,marginTop:4}}>{libro.autor}</div>
+          <div style={{display:"flex",gap:18,marginTop:8,flexWrap:"wrap",fontSize:12,color:"rgba(255,255,255,.5)"}}>
+            <span><span style={{color:G}}>ISBN:</span> {libro.isbn||"—"}</span>
+            <span><span style={{color:G}}>P. Normal:</span> {f$(libro.pN)}</span>
+            <span><span style={{color:G}}>P. USS:</span> {f$(libro.pU)}</span>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:8,flexShrink:0}}>
+          <Btn sm v="secondary" onClick={()=>setEditingInfo(e=>!e)} style={{background:editingInfo?G2:"rgba(207,180,124,.2)",color:G,border:`1px solid ${G}`}}>{editingInfo?"Cancelar":"✏ Editar info"}</Btn>
+          <button onClick={onClose} style={{background:"rgba(255,255,255,.15)",border:"none",cursor:"pointer",color:W,fontSize:16,width:30,height:30,borderRadius:6,display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
         </div>
       </div>
-    )}
-
-    {/* Table */}
-    <div style={{background:W,borderRadius:8,boxShadow:"0 1px 6px rgba(0,0,0,.07)",overflow:"hidden"}}>
-      <div style={{overflowX:"auto"}}>
-        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,fontFamily:"DM Sans,sans-serif"}}>
-          <thead><tr style={{background:N}}>
-            <TH ch=""/><TH ch="Título"/><TH ch="Autor"/><TH ch="Año" center/><TH ch="P. USS" center/>
-            <TH ch="Disponible" center/><TH ch="Consig." center/><TH ch="Regalados" center/><TH ch="Stock inicial" center/>
-          </tr></thead>
-          <tbody>
-            {filtered.map((l,i)=>{
-              const s=calcStock(l.id,regalos,consignaciones,libros);
-              const dc=s.disp<=0?RD:s.disp<10?"#DC2626":s.disp<20?"#D97706":s.disp<50?"#CA8A04":GR;
-              const isSel=selId===l.id;
-              return<React.Fragment key={l.id}>
-                <tr className={`row-hover${isSel?" row-sel":""}`} onClick={()=>{setSelId(isSel?null:l.id);setAddOpen(false);}}
-                  style={{cursor:"pointer",borderBottom:isSel?`2px solid ${G}`:"1px solid #F3F4F6",background:isSel?G2:i%2===0?W:"#F9FAFB"}}>
-                  <td style={{padding:"9px 8px 9px 14px",width:26}}>
-                    <span style={{color:isSel?N:MU,fontSize:13,display:"inline-block",transform:isSel?"rotate(90deg)":"none",transition:"transform .15s"}}>▶</span>
-                  </td>
-                  <td style={{padding:"9px 12px",color:N,fontWeight:500,maxWidth:280}}>
-                    <div style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{trunc(l.titulo,58)}</div>
-                    <div style={{fontSize:10,color:MU,marginTop:2}}>{l.cat}</div>
-                  </td>
-                  <td style={{padding:"9px 12px",color:MU,maxWidth:160}}><div style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{trunc(l.autor,36)}</div></td>
-                  <td style={{padding:"9px 12px",textAlign:"center",color:MU}}>{l.ano||"—"}</td>
-                  <td style={{padding:"9px 12px",textAlign:"center",color:MU}}>{f$(l.pU)}</td>
-                  <td style={{padding:"9px 12px",textAlign:"center",fontWeight:700,color:dc}}>{s.disp}</td>
-                  <td style={{padding:"9px 12px",textAlign:"center",color:s.enConsig>0?"#2563EB":MU,fontWeight:s.enConsig>0?600:400}}>{s.enConsig||"—"}</td>
-                  <td style={{padding:"9px 12px",textAlign:"center",color:s.regalados>0?G:MU,fontWeight:s.regalados>0?700:400}}>{s.regalados||"—"}</td>
-                  <td style={{padding:"9px 12px",textAlign:"center",color:MU}}>{l.si}</td>
-                </tr>
-                {isSel&&<tr><td colSpan={9} style={{padding:"0 14px 14px"}}>
-                  <BookDetailPanel
-                    libro={l} regalos={regalos} consignaciones={consignaciones} libros={libros}
-                    onSaveRegalos={onSaveRegalos} onSaveConsignaciones={onSaveConsignaciones}
-                    onSaveLibros={data=>{onSaveLibros(data);if(!data.find(x=>x.id===l.id))setSelId(null);}}
-                    onClose={()=>setSelId(null)}
-                  />
-                </td></tr>}
-              </React.Fragment>;
-            })}
-          </tbody>
-        </table>
+    </div>
+    {/* Edit form */}
+    {editingInfo&&<div style={{padding:"16px 22px",background:"#F0F4FF",borderBottom:"1px solid #C7D2FE"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+        <span style={{fontWeight:700,fontSize:14,color:N}}>Editar información</span>
+        <Btn sm v="danger" onClick={handleDelete}>🗑 Eliminar libro</Btn>
       </div>
-      <div style={{padding:"8px 14px",background:"#F9FAFB",borderTop:"1px solid #E5E7EB",fontSize:11,color:MU}}>
-        {filtered.length} de {libros.length} títulos
+      <BookForm initial={libroToForm(libro)} initBod={libro.bodegas||BLANK_BOD()} onSave={handleSaveInfo} onCancel={()=>setEditingInfo(false)} isEdit={true}/>
+    </div>}
+    {/* Stock + Bodegas */}
+    <div style={{padding:"14px 22px",background:"#F9F7F3",borderBottom:`1px solid ${G2}`}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10,marginBottom:14}}>
+        {[["Stock inicial",libro.si,N],["Mal estado",s.malEstado,RD],["Regalados",s.regalados,G],["En consignación",s.enConsig,"#2563EB"],["Disponible",s.disp,dispColor]].map(([lbl,val,col])=>
+          <div key={lbl} style={{textAlign:"center",padding:"11px 6px",background:W,borderRadius:8,boxShadow:"0 1px 4px rgba(0,0,0,.05)"}}>
+            <div style={{fontSize:22,fontWeight:700,color:col,fontFamily:"Libre Baskerville,serif"}}>{val}</div>
+            <div style={{fontSize:11,color:MU,marginTop:3}}>{lbl}</div>
+          </div>
+        )}
+      </div>
+      {s.disp<20&&s.disp>=0&&<div style={{marginBottom:12,padding:"7px 14px",background:s.disp===0?RDL:ORL,borderRadius:6,fontSize:12,color:s.disp===0?RD:OR,fontWeight:500}}>{s.disp===0?"⚠ Título agotado.":`⚠ Stock bajo — solo ${s.disp} ejs. disponibles.`}</div>}
+      {/* Bodegas display */}
+      <div style={{fontSize:11,fontWeight:700,color:N,textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>📦 Distribución por bodega</div>
+      <BodegasSection bodegas={libro.bodegas||BLANK_BOD()}/>
+    </div>
+    {/* Consig + Regalos */}
+    <div style={{padding:"20px 22px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
+      <div>
+        <SH title="📋 Consignaciones" action={<Btn sm v="blue" onClick={()=>{setShowCF(o=>!o);setCErr("");}}>{showCF?"Cancelar":"+ Nueva"}</Btn>}/>
+        {showCF&&<div style={{background:"#EFF6FF",border:"1px solid #BFDBFE",borderRadius:8,padding:14,marginBottom:14}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+            <div style={{gridColumn:"1/-1"}}><LBL ch="Distribuidora *"/><Inp value={cf.distribuidor} onChange={v=>setCf({...cf,distribuidor:v})} placeholder="Ej: Librería Antártica…" style={{width:"100%"}}/></div>
+            <div><LBL ch="Cantidad *"/><Inp type="number" value={cf.cantEnv} onChange={v=>setCf({...cf,cantEnv:v})} min="1" style={{width:"100%"}}/></div>
+            <div><LBL ch="Fecha envío *"/><Inp type="date" value={cf.fechaEnv} onChange={v=>setCf({...cf,fechaEnv:v})} style={{width:"100%"}}/></div>
+            <div style={{gridColumn:"1/-1"}}><LBL ch="Notas"/><Inp value={cf.notas} onChange={v=>setCf({...cf,notas:v})} style={{width:"100%"}}/></div>
+          </div>
+          {cErr&&<div style={{color:RD,fontSize:12,marginBottom:8}}>{cErr}</div>}
+          <Btn onClick={subCons}>Guardar consignación</Btn>
+        </div>}
+        {misCons.length===0?<p style={{fontSize:13,color:MU,textAlign:"center",padding:"20px 0"}}>Sin consignaciones para este título.</p>:misCons.map(c=>{
+          const neto=c.cantEnv-(c.cantVend||0)-(c.cantDev||0);const ec=EC[c.estado]||{bg:"#F3F4F6",cl:MU};const isE=editCId===c.id;
+          return<div key={c.id} style={{border:"1px solid #E5E7EB",borderRadius:8,padding:"12px 14px",marginBottom:10,background:"#FAFAFA"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+              <div><div style={{fontWeight:600,color:N,fontSize:13}}>{c.distribuidor}</div><div style={{fontSize:11,color:MU}}>{fD(c.fechaEnv)}{c.notas?` · ${c.notas}`:""}</div></div>
+              <Badge text={c.estado.charAt(0).toUpperCase()+c.estado.slice(1)} color={ec.cl} bg={ec.bg}/>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:10}}>
+              {[["Enviado",c.cantEnv,"#374151"],["Vendido",c.cantVend||0,GR],["Devuelto",c.cantDev||0,OR],["En consig.",neto,"#2563EB"]].map(([lbl,val,col])=>
+                <div key={lbl} style={{textAlign:"center",background:W,border:"1px solid #E5E7EB",borderRadius:6,padding:"5px 4px"}}>
+                  <div style={{fontSize:15,fontWeight:700,color:col}}>{val}</div><div style={{fontSize:10,color:MU}}>{lbl}</div>
+                </div>
+              )}
+            </div>
+            {isE?(<div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:8}}>
+              <div><LBL ch="Vendidos"/><Inp type="number" value={ecf.cantVend} onChange={v=>setEcf({...ecf,cantVend:v})} style={{width:"100%"}} min="0"/></div>
+              <div><LBL ch="Devueltos"/><Inp type="number" value={ecf.cantDev} onChange={v=>setEcf({...ecf,cantDev:v})} style={{width:"100%"}} min="0"/></div>
+              <div><LBL ch="Estado"/><Sel value={ecf.estado} onChange={v=>setEcf({...ecf,estado:v})} options={[{v:"activa",l:"Activa"},{v:"liquidada",l:"Liquidada"},{v:"devuelta",l:"Devuelta"}]} style={{width:"100%",padding:"6px 8px"}}/></div>
+            </div><div style={{display:"flex",gap:8}}><Btn sm onClick={()=>saveCons(c.id)}>✓ Guardar</Btn><Btn sm v="ghost" onClick={()=>setEditCId(null)}>Cancelar</Btn></div></div>)
+            :(<div style={{display:"flex",gap:8}}><Btn sm v="secondary" onClick={()=>{setEditCId(c.id);setEcf({cantVend:c.cantVend||0,cantDev:c.cantDev||0,estado:c.estado});}}>Actualizar</Btn><Btn sm v="danger" onClick={()=>{if(window.confirm("¿Eliminar consignación?"))onSaveConsignaciones(consignaciones.filter(x=>x.id!==c.id));}}>Eliminar</Btn></div>)}
+          </div>;
+        })}
+      </div>
+      <div>
+        <SH title="🎁 Regalos / Donaciones" action={<Btn sm v="secondary" onClick={()=>{setShowRF(o=>!o);setRErr("");}}>{showRF?"Cancelar":"+ Nuevo"}</Btn>}/>
+        {showRF&&<div style={{background:"#FFFBF0",border:`1px solid ${G2}`,borderRadius:8,padding:14,marginBottom:14}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+            <div><LBL ch="Cantidad *"/><Inp type="number" value={rf.cantidad} onChange={v=>setRf({...rf,cantidad:v})} min="1" style={{width:"100%"}}/></div>
+            <div><LBL ch="Fecha *"/><Inp type="date" value={rf.fecha} onChange={v=>setRf({...rf,fecha:v})} style={{width:"100%"}}/></div>
+            <div style={{gridColumn:"1/-1"}}><LBL ch="Stakeholder *"/><Inp value={rf.stakeholder} onChange={v=>setRf({...rf,stakeholder:v})} placeholder="Ej: Ministerio de Educación…" style={{width:"100%"}}/></div>
+            <div style={{gridColumn:"1/-1"}}><LBL ch="Nota (opcional)"/><Inp value={rf.nota} onChange={v=>setRf({...rf,nota:v})} style={{width:"100%"}}/></div>
+          </div>
+          {rErr&&<div style={{color:RD,fontSize:12,marginBottom:8}}>{rErr}</div>}
+          <Btn v="secondary" onClick={subReg}>Guardar regalo</Btn>
+        </div>}
+        {misRegalos.length===0?<p style={{fontSize:13,color:MU,textAlign:"center",padding:"20px 0"}}>Sin regalos para este título.</p>:misRegalos.map((r,i)=>(
+          <div key={r.id} style={{border:"1px solid #E5E7EB",borderRadius:8,padding:"12px 14px",marginBottom:10,background:i%2===0?"#FAFAFA":W}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+              <div style={{flex:1}}><div style={{fontWeight:600,color:N,fontSize:13}}>{r.stakeholder}</div><div style={{fontSize:11,color:MU,marginTop:2}}>{fD(r.fecha)}{r.nota?` · ${r.nota}`:""}</div></div>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <span style={{fontWeight:700,fontSize:17,color:G,fontFamily:"Libre Baskerville,serif"}}>{r.cantidad}</span>
+                <span style={{fontSize:11,color:MU}}>ej.</span>
+                <Btn sm v="danger" onClick={()=>{if(window.confirm("¿Eliminar?"))onSaveRegalos(regalos.filter(x=>x.id!==r.id));}}>✕</Btn>
+              </div>
+            </div>
+          </div>
+        ))}
+        {misRegalos.length>0&&<div style={{marginTop:6,padding:"7px 12px",background:G2,borderRadius:6,fontSize:12,color:N,textAlign:"right"}}>Total donado: <strong>{misRegalos.reduce((s,r)=>s+r.cantidad,0)} ejemplares</strong></div>}
       </div>
     </div>
   </div>;
 }
 
-/* ── DASHBOARD ───────────────────────────────────────────────── */
+/* ── CATÁLOGO ── */
+function Catalogo({libros,regalos,consignaciones,onSaveLibros,onSaveRegalos,onSaveConsignaciones}){
+  const[q,setQ]=useState(""),[cat,setCat]=useState(""),[selId,setSelId]=useState(null);
+  const[addOpen,setAddOpen]=useState(false);
+  const[toast,setToast]=useState("");
+  const cats=[...new Set(libros.map(l=>l.cat))].sort();
+  const filtered=useMemo(()=>libros.filter(l=>{const qL=q.toLowerCase();return(!q||l.titulo.toLowerCase().includes(qL)||l.autor.toLowerCase().includes(qL)||(l.isbn||"").includes(qL))&&(!cat||l.cat===cat);}),[q,cat,libros]);
+  function handleAdd(f,bod){const n=formToLibro(f,uid(),bod);onSaveLibros([...libros,n]);setAddOpen(false);setToast(`"${trunc(n.titulo,40)}" agregado.`);}
+  const TH=({ch,center})=><th style={{padding:"10px 12px",textAlign:center?"center":"left",fontWeight:600,whiteSpace:"nowrap",color:W,fontSize:13}}>{ch}</th>;
+  return<div>
+    {toast&&<Toast msg={toast} onClose={()=>setToast("")}/>}
+    <div style={{display:"flex",gap:10,marginBottom:18,flexWrap:"wrap",alignItems:"center"}}>
+      <Inp value={q} onChange={setQ} placeholder="Buscar título, autor o ISBN…" style={{flex:1,minWidth:220}}/>
+      <Sel value={cat} onChange={setCat} placeholder="Todas las categorías" options={cats.map(c=>({v:c,l:c}))} style={{minWidth:200}}/>
+      {(q||cat)&&<Btn v="ghost" onClick={()=>{setQ("");setCat("");}}>Limpiar</Btn>}
+      <Btn v="green" onClick={()=>{setAddOpen(o=>!o);setSelId(null);}}>{addOpen?"✕ Cancelar":"+ Agregar libro"}</Btn>
+      <span style={{fontSize:11,color:MU,marginLeft:"auto"}}>{filtered.length}/{libros.length} · <span style={{color:G,fontWeight:600}}>clic en fila para gestionar</span></span>
+    </div>
+    {addOpen&&<div className="pin" style={{marginBottom:18}}>
+      <div style={{background:N,padding:"11px 18px",borderRadius:"8px 8px 0 0"}}><span style={{color:W,fontWeight:600,fontSize:14}}>Agregar nuevo título</span></div>
+      <div style={{padding:18,background:W,borderRadius:"0 0 8px 8px",border:"1px solid #E5E7EB",borderTop:"none"}}>
+        <BookForm onSave={handleAdd} onCancel={()=>setAddOpen(false)}/>
+      </div>
+    </div>}
+    <div style={{background:W,borderRadius:8,boxShadow:"0 1px 6px rgba(0,0,0,.07)",overflow:"hidden"}}>
+      <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+        <thead><tr style={{background:N}}><TH ch=""/><TH ch="Título"/><TH ch="Autor"/><TH ch="Año" center/><TH ch="P. USS" center/><TH ch="Disponible" center/><TH ch="Consig." center/><TH ch="Regalados" center/><TH ch="Stock inicial" center/></tr></thead>
+        <tbody>
+          {filtered.map((l,i)=>{
+            const s=calcStock(l.id,regalos,consignaciones,libros);
+            const dc=s.disp<=0?RD:s.disp<10?"#DC2626":s.disp<20?"#D97706":s.disp<50?"#CA8A04":GR;
+            const isSel=selId===l.id;
+            return<React.Fragment key={l.id}>
+              <tr className={`rh${isSel?" rsel":""}`} onClick={()=>{setSelId(isSel?null:l.id);setAddOpen(false);}}
+                style={{cursor:"pointer",borderBottom:isSel?`2px solid ${G}`:"1px solid #F3F4F6",background:isSel?G2:i%2===0?W:"#F9FAFB"}}>
+                <td style={{padding:"9px 8px 9px 14px",width:26}}><span style={{color:isSel?N:MU,fontSize:13,display:"inline-block",transform:isSel?"rotate(90deg)":"none",transition:"transform .15s"}}>▶</span></td>
+                <td style={{padding:"9px 12px",color:N,fontWeight:500,maxWidth:280}}><div style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{trunc(l.titulo,58)}</div><div style={{fontSize:10,color:MU,marginTop:2}}>{l.cat}</div></td>
+                <td style={{padding:"9px 12px",color:MU,maxWidth:160}}><div style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{trunc(l.autor,36)}</div></td>
+                <td style={{padding:"9px 12px",textAlign:"center",color:MU}}>{l.ano||"—"}</td>
+                <td style={{padding:"9px 12px",textAlign:"center",color:MU}}>{f$(l.pU)}</td>
+                <td style={{padding:"9px 12px",textAlign:"center",fontWeight:700,color:dc}}>{s.disp}</td>
+                <td style={{padding:"9px 12px",textAlign:"center",color:s.enConsig>0?"#2563EB":MU,fontWeight:s.enConsig>0?600:400}}>{s.enConsig||"—"}</td>
+                <td style={{padding:"9px 12px",textAlign:"center",color:s.regalados>0?G:MU,fontWeight:s.regalados>0?700:400}}>{s.regalados||"—"}</td>
+                <td style={{padding:"9px 12px",textAlign:"center",color:MU}}>{l.si}</td>
+              </tr>
+              {isSel&&<tr><td colSpan={9} style={{padding:"0 14px 14px"}}>
+                <BookDetailPanel libro={l} regalos={regalos} consignaciones={consignaciones} libros={libros}
+                  onSaveRegalos={onSaveRegalos} onSaveConsignaciones={onSaveConsignaciones}
+                  onSaveLibros={d=>{onSaveLibros(d);if(!d.find(x=>x.id===l.id))setSelId(null);}}
+                  onClose={()=>setSelId(null)}/>
+              </td></tr>}
+            </React.Fragment>;
+          })}
+        </tbody>
+      </table></div>
+    </div>
+  </div>;
+}
+
+/* ── ESCÁNER ── */
+function Scanner({libros,regalos,consignaciones,onSaveRegalos,onSaveConsignaciones,onSaveLibros}){
+  const[isbn,setIsbn]=useState("");
+  const[found,setFound]=useState(null);
+  const[notFound,setNotFound]=useState(false);
+  const[action,setAction]=useState(null); // "entrada"|"regalo"|"consignacion"
+  const[qty,setQty]=useState("1");
+  const[stakeholder,setStakeholder]=useState("");
+  const[fecha,setFecha]=useState(new Date().toISOString().slice(0,10));
+  const[msg,setMsg]=useState("");
+  const inputRef=useRef(null);
+  useEffect(()=>{inputRef.current?.focus();},[]);
+
+  function handleScan(val){
+    const clean=val.trim();
+    if(!clean)return;
+    const book=libros.find(l=>l.isbn&&l.isbn.trim()===clean);
+    if(book){setFound(book);setNotFound(false);setAction(null);setQty("1");}
+    else{setFound(null);setNotFound(true);}
+    setIsbn("");
+    setTimeout(()=>inputRef.current?.focus(),50);
+  }
+
+  function doEntrada(){
+    const q=parseInt(qty);if(!q||q<=0)return;
+    const updated=libros.map(l=>l.id===found.id?{...l,si:l.si+q}:l);
+    onSaveLibros(updated);
+    setMsg(`✓ Entrada registrada: +${q} ejs. de "${trunc(found.titulo,35)}"`);
+    setFound(null);setAction(null);
+    setTimeout(()=>inputRef.current?.focus(),100);
+  }
+
+  function doRegalo(){
+    const q=parseInt(qty);if(!q||q<=0||!stakeholder.trim())return;
+    const s=calcStock(found.id,regalos,consignaciones,libros);
+    if(q>s.disp){setMsg(`⚠ Stock insuficiente. Disponible: ${s.disp} ejs.`);return;}
+    onSaveRegalos([...regalos,{id:uid(),libroId:found.id,cantidad:q,fecha,stakeholder:stakeholder.trim(),nota:"Escáner"}]);
+    setMsg(`✓ Regalo registrado: ${q} ejs. → ${stakeholder}`);
+    setFound(null);setAction(null);setStakeholder("");
+    setTimeout(()=>inputRef.current?.focus(),100);
+  }
+
+  const s=found?calcStock(found.id,regalos,consignaciones,libros):null;
+
+  return<div>
+    <h2 style={{color:N,fontSize:17,fontFamily:"Libre Baskerville,serif",marginBottom:6}}>Escáner de código de barras</h2>
+    <p style={{color:MU,fontSize:13,marginBottom:20,lineHeight:1.6}}>Conecta tu lector USB, haz clic en el campo de abajo y escanea cualquier libro. El lector actúa como teclado — escribe el ISBN y presiona Enter automáticamente.</p>
+
+    {/* Scan input */}
+    <div style={{background:W,borderRadius:10,padding:24,marginBottom:20,boxShadow:"0 1px 6px rgba(0,0,0,.07)",border:`2px solid ${G}`}}>
+      <div style={{display:"flex",gap:12,alignItems:"center"}}>
+        <div style={{fontSize:32}}>📷</div>
+        <div style={{flex:1}}>
+          <LBL ch="Escanea o escribe un ISBN"/>
+          <div style={{display:"flex",gap:10}}>
+            <Inp ref={inputRef} value={isbn} onChange={setIsbn}
+              placeholder="Apunta el lector al código de barras del libro…"
+              autoFocus={true}
+              onKeyDown={e=>{if(e.key==="Enter")handleScan(isbn);}}
+              style={{flex:1,fontSize:15,padding:"10px 14px",border:`2px solid ${G}`,background:"#FFFBF0"}}/>
+            <Btn v="secondary" onClick={()=>handleScan(isbn)}>Buscar</Btn>
+          </div>
+        </div>
+      </div>
+      <div style={{marginTop:10,fontSize:11,color:MU}}>💡 El lector envía el ISBN y un Enter automáticamente — no necesitas hacer nada más que apuntar y escanear.</div>
+    </div>
+
+    {/* Feedback msg */}
+    {msg&&<div style={{marginBottom:16,padding:"10px 16px",background:msg.startsWith("⚠")?ORL:GRL,borderRadius:8,fontSize:13,color:msg.startsWith("⚠")?OR:GR,fontWeight:500}}>{msg}<button onClick={()=>setMsg("")} style={{float:"right",background:"none",border:"none",cursor:"pointer",color:"inherit",fontSize:16}}>✕</button></div>}
+
+    {/* Not found */}
+    {notFound&&<div style={{padding:20,background:RDL,borderRadius:8,marginBottom:16,fontSize:13,color:RD}}>❌ No se encontró ningún libro con ese ISBN. Verifica el código o agrégalo manualmente desde el Catálogo.</div>}
+
+    {/* Found book */}
+    {found&&<div className="pin" style={{background:W,borderRadius:10,border:`2px solid #2563EB`,overflow:"hidden",boxShadow:"0 4px 20px rgba(37,99,235,.15)"}}>
+      <div style={{background:"#1E3A8A",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+        <div>
+          <div style={{color:"#93C5FD",fontSize:10,fontWeight:600,letterSpacing:"2px",textTransform:"uppercase",marginBottom:3}}>{found.cat} · ISBN {found.isbn}</div>
+          <div style={{color:W,fontSize:14,fontFamily:"Libre Baskerville,serif",fontWeight:700}}>{trunc(found.titulo,70)}</div>
+          <div style={{color:"rgba(255,255,255,.6)",fontSize:12,marginTop:3}}>{found.autor}</div>
+        </div>
+        <button onClick={()=>{setFound(null);setAction(null);setMsg("");}} style={{background:"rgba(255,255,255,.15)",border:"none",cursor:"pointer",color:W,fontSize:16,width:28,height:28,borderRadius:6,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>✕</button>
+      </div>
+      {/* Stock mini */}
+      <div style={{padding:"12px 20px",background:"#EFF6FF",display:"flex",gap:20,fontSize:13,borderBottom:"1px solid #BFDBFE",flexWrap:"wrap"}}>
+        {[["Stock inicial",found.si,N],["Disponible",s.disp,s.disp<=0?RD:s.disp<20?"#D97706":GR],["Regalados",s.regalados,G],["En consig.",s.enConsig,"#2563EB"]].map(([lbl,val,col])=>
+          <div key={lbl} style={{textAlign:"center",minWidth:70}}>
+            <div style={{fontSize:20,fontWeight:700,color:col,fontFamily:"Libre Baskerville,serif"}}>{val}</div>
+            <div style={{fontSize:10,color:MU}}>{lbl}</div>
+          </div>
+        )}
+      </div>
+      {/* Actions */}
+      <div style={{padding:"16px 20px"}}>
+        {!action&&<div>
+          <div style={{fontSize:12,color:MU,marginBottom:12,fontWeight:600}}>¿QUÉ QUIERES REGISTRAR?</div>
+          <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+            <Btn v="green" onClick={()=>setAction("entrada")}>📥 Entrada de stock</Btn>
+            <Btn v="secondary" onClick={()=>setAction("regalo")}>🎁 Registrar regalo</Btn>
+            <Btn v="blue" onClick={()=>setAction("consignacion")}>📦 Nueva consignación</Btn>
+          </div>
+        </div>}
+        {action==="entrada"&&<div>
+          <div style={{fontSize:13,fontWeight:600,color:GR,marginBottom:12}}>📥 Entrada de stock — se sumará al stock inicial</div>
+          <div style={{display:"flex",gap:10,alignItems:"flex-end"}}>
+            <div><LBL ch="Cantidad a agregar"/><Inp type="number" value={qty} onChange={setQty} min="1" style={{width:120}} autoFocus={true}/></div>
+            <Btn v="green" onClick={doEntrada}>Confirmar entrada</Btn>
+            <Btn v="ghost" onClick={()=>setAction(null)}>Cancelar</Btn>
+          </div>
+        </div>}
+        {action==="regalo"&&<div>
+          <div style={{fontSize:13,fontWeight:600,color:G,marginBottom:12}}>🎁 Registrar regalo / donación</div>
+          <div style={{display:"grid",gridTemplateColumns:"auto auto 1fr",gap:10,alignItems:"flex-end"}}>
+            <div><LBL ch="Cantidad"/><Inp type="number" value={qty} onChange={setQty} min="1" style={{width:90}} autoFocus={true}/></div>
+            <div><LBL ch="Fecha"/><Inp type="date" value={fecha} onChange={setFecha} style={{width:140}}/></div>
+            <div><LBL ch="Stakeholder *"/><Inp value={stakeholder} onChange={setStakeholder} placeholder="Nombre del destinatario…" style={{width:"100%"}}/></div>
+          </div>
+          <div style={{marginTop:10,display:"flex",gap:10}}>
+            <Btn v="secondary" onClick={doRegalo}>Confirmar regalo</Btn>
+            <Btn v="ghost" onClick={()=>setAction(null)}>Cancelar</Btn>
+          </div>
+        </div>}
+        {action==="consignacion"&&<div style={{fontSize:13,color:MU}}>Para consignaciones ve al panel del libro desde el Catálogo. <button onClick={()=>setAction(null)} style={{color:BL,background:"none",border:"none",cursor:"pointer",fontWeight:600}}>Cancelar</button></div>}
+      </div>
+    </div>}
+
+    {/* Scanner guide */}
+    <div style={{marginTop:24,padding:20,background:W,borderRadius:8,boxShadow:"0 1px 6px rgba(0,0,0,.07)"}}>
+      <div style={{fontWeight:700,color:N,fontSize:13,marginBottom:12}}>🛒 ¿Qué pistola lectora comprar?</div>
+      <p style={{fontSize:13,color:MU,lineHeight:1.7,marginBottom:12}}>Cualquier <strong style={{color:N}}>lector de código de barras USB tipo HID</strong> funciona sin instalación — se conecta al computador como si fuera un teclado. No necesita software especial ni drivers.</p>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}}>
+        {[["Económica (~$15-25 USD)","Lector 1D USB genérico","MercadoLibre: busca 'lector código barras USB'"],["Recomendada (~$30-50 USD)","Honeywell Voyager 1200g","Lee bien en todo ángulo, muy confiable"],["Premium (~$80+ USD)","Zebra DS2208","Bidireccional, lee QR también"]].map(([p,m,d])=>
+          <div key={m} style={{padding:"12px 14px",background:"#F9FAFB",borderRadius:8,border:"1px solid #E5E7EB"}}>
+            <div style={{fontSize:11,color:G,fontWeight:700,marginBottom:4}}>{p}</div>
+            <div style={{fontWeight:600,color:N,fontSize:13,marginBottom:4}}>{m}</div>
+            <div style={{fontSize:11,color:MU}}>{d}</div>
+          </div>
+        )}
+      </div>
+      <div style={{marginTop:12,fontSize:12,color:MU,background:"#F0F9FF",padding:"8px 12px",borderRadius:6}}>💡 Asegúrate de que el lector esté configurado en <strong>modo USB HID (teclado)</strong>, no modo COM/serial — casi todos vienen así de fábrica.</div>
+    </div>
+  </div>;
+}
+
+/* ── DASHBOARD ── */
 function Dashboard({libros,regalos,consignaciones}){
   const gs=id=>calcStock(id,regalos,consignaciones,libros);
-  const totDisp =useMemo(()=>libros.reduce((s,l)=>s+Math.max(0,gs(l.id).disp),0),[libros,regalos,consignaciones]);
-  const totReg  =useMemo(()=>regalos.reduce((s,r)=>s+r.cantidad,0),[regalos]);
-  const totCon  =useMemo(()=>libros.reduce((s,l)=>s+Math.max(0,gs(l.id).enConsig),0),[libros,consignaciones]);
-  const alertas =useMemo(()=>libros.filter(l=>{const d=gs(l.id).disp;return d>=0&&d<20;}),[libros,regalos,consignaciones]);
+  const totDisp=useMemo(()=>libros.reduce((s,l)=>s+Math.max(0,gs(l.id).disp),0),[libros,regalos,consignaciones]);
+  const totReg=useMemo(()=>regalos.reduce((s,r)=>s+r.cantidad,0),[regalos]);
+  const totCon=useMemo(()=>libros.reduce((s,l)=>s+Math.max(0,gs(l.id).enConsig),0),[libros,consignaciones]);
+  const alertas=useMemo(()=>libros.filter(l=>{const d=gs(l.id).disp;return d>=0&&d<20;}),[libros,regalos,consignaciones]);
   const agotados=useMemo(()=>libros.filter(l=>gs(l.id).disp<=0),[libros,regalos,consignaciones]);
   const cats=useMemo(()=>{const m={};libros.forEach(l=>{if(!m[l.cat])m[l.cat]={t:0,d:0};m[l.cat].t++;m[l.cat].d+=Math.max(0,gs(l.id).disp);});return Object.entries(m).sort((a,b)=>b[1].d-a[1].d);},[libros,regalos,consignaciones]);
+  // Bodegas totals
+  const bodTotals=useMemo(()=>{const m=Object.fromEntries(BOD_NAMES.map(k=>[k,0]));libros.forEach(l=>BOD_NAMES.forEach(k=>{m[k]+=(l.bodegas?.[k]||0);}));return m;},[libros]);
+  const maxBod=Math.max(...Object.values(bodTotals),1);
   const lastR=[...regalos].sort((a,b)=>b.fecha.localeCompare(a.fecha)).slice(0,5);
   const lastC=[...consignaciones].sort((a,b)=>b.fechaEnv.localeCompare(a.fechaEnv)).slice(0,5);
   const ROW={padding:"7px 0",borderBottom:"1px solid #F3F4F6",fontSize:13,display:"flex",justifyContent:"space-between",alignItems:"center"};
-  const P=({t,ch})=><div style={{background:W,borderRadius:8,boxShadow:"0 1px 6px rgba(0,0,0,.07)",overflow:"hidden"}}><div style={{background:N,padding:"11px 18px"}}><span style={{color:W,fontWeight:600,fontSize:14}}>{t}</span></div><div style={{padding:18}}>{ch}</div></div>;
+  const P=({t,children})=><div style={{background:W,borderRadius:8,boxShadow:"0 1px 6px rgba(0,0,0,.07)",overflow:"hidden"}}><div style={{background:N,padding:"11px 18px"}}><span style={{color:W,fontWeight:600,fontSize:14}}>{t}</span></div><div style={{padding:18}}>{children}</div></div>;
   return<div>
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:14,marginBottom:22}}>
       <KPI label="Títulos en catálogo" value={libros.length} accent={N}/>
@@ -571,18 +765,36 @@ function Dashboard({libros,regalos,consignaciones}){
       <KPI label="Alertas stock bajo" value={alertas.length} accent="#D97706"/>
       <KPI label="Títulos agotados" value={agotados.length} accent={RD}/>
     </div>
+    {/* Bodegas panel */}
+    <div style={{marginBottom:14}}>
+      <P t="🏭 Stock por bodega">
+        {BOD_NAMES.map(k=>{
+          const v=bodTotals[k];const pct=Math.round((v/maxBod)*100);
+          return<div key={k} style={{marginBottom:12}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+              <span style={{fontSize:13,fontWeight:600,color:N}}>{k}</span>
+              <span style={{fontSize:13,fontWeight:700,color:"#2563EB"}}>{v.toLocaleString("es-CL")}</span>
+            </div>
+            <div style={{height:8,background:"#E5E7EB",borderRadius:4,overflow:"hidden"}}>
+              <div style={{height:"100%",width:`${pct}%`,background:v===0?"#E5E7EB":"#2563EB",borderRadius:4,transition:"width .3s"}}/>
+            </div>
+          </div>;
+        })}
+        <div style={{marginTop:8,fontSize:11,color:MU,textAlign:"right"}}>Total en bodegas: <strong style={{color:N}}>{Object.values(bodTotals).reduce((s,v)=>s+v,0).toLocaleString("es-CL")}</strong></div>
+      </P>
+    </div>
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
-      <P t="⚠ Stock bajo (< 20 ejemplares)" ch={alertas.length===0?<p style={{fontSize:13,color:MU}}>Sin alertas.</p>:alertas.map(l=>{const d=gs(l.id).disp;return<div key={l.id} style={ROW}><span style={{color:N,maxWidth:"80%",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{l.titulo}</span><span style={{color:d<=0?RD:"#D97706",fontWeight:700}}>{d}</span></div>;})}/>
-      <P t="📊 Resumen por categoría" ch={cats.map(([c,d])=><div key={c} style={ROW}><span style={{color:N}}>{c}</span><span style={{color:MU,fontSize:12}}>{d.t} tít. · <strong style={{color:N}}>{d.d.toLocaleString("es-CL")}</strong> ejs.</span></div>)}/>
+      <P t="⚠ Stock bajo (< 20 ejemplares)">{alertas.length===0?<p style={{fontSize:13,color:MU}}>Sin alertas.</p>:alertas.map(l=>{const d=gs(l.id).disp;return<div key={l.id} style={ROW}><span style={{color:N,maxWidth:"80%",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{l.titulo}</span><span style={{color:d<=0?RD:"#D97706",fontWeight:700}}>{d}</span></div>;})}</P>
+      <P t="📊 Resumen por categoría">{cats.map(([c,d])=><div key={c} style={ROW}><span style={{color:N}}>{c}</span><span style={{color:MU,fontSize:12}}>{d.t} tít. · <strong style={{color:N}}>{d.d.toLocaleString("es-CL")}</strong> ejs.</span></div>)}</P>
     </div>
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-      <P t="🎁 Últimos regalos" ch={lastR.length===0?<p style={{fontSize:13,color:MU}}>Sin regalos.</p>:lastR.map(r=>{const l=libros.find(x=>x.id===r.libroId);return<div key={r.id} style={{padding:"7px 0",borderBottom:"1px solid #F3F4F6",fontSize:13}}><div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:N,fontWeight:600}}>{r.stakeholder}</span><span style={{color:G,fontWeight:700}}>{r.cantidad} ejs. · {fD(r.fecha)}</span></div><div style={{color:MU,fontSize:12}}>{trunc(l?.titulo,55)}</div></div>;})}/>
-      <P t="📦 Últimas consignaciones" ch={lastC.length===0?<p style={{fontSize:13,color:MU}}>Sin consignaciones.</p>:lastC.map(c=>{const l=libros.find(x=>x.id===c.libroId);const n=c.cantEnv-(c.cantVend||0)-(c.cantDev||0);return<div key={c.id} style={{padding:"7px 0",borderBottom:"1px solid #F3F4F6",fontSize:13}}><div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:N,fontWeight:600}}>{c.distribuidor}</span><span style={{color:"#2563EB",fontWeight:700}}>{n} en consig.</span></div><div style={{color:MU,fontSize:12}}>{trunc(l?.titulo,55)}</div></div>;})}/>
+      <P t="🎁 Últimos regalos">{lastR.length===0?<p style={{fontSize:13,color:MU}}>Sin regalos aún.</p>:lastR.map(r=>{const l=libros.find(x=>x.id===r.libroId);return<div key={r.id} style={{padding:"7px 0",borderBottom:"1px solid #F3F4F6",fontSize:13}}><div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:N,fontWeight:600}}>{r.stakeholder}</span><span style={{color:G,fontWeight:700}}>{r.cantidad} ejs. · {fD(r.fecha)}</span></div><div style={{color:MU,fontSize:12}}>{trunc(l?.titulo,55)}</div></div>;})}</P>
+      <P t="📦 Últimas consignaciones">{lastC.length===0?<p style={{fontSize:13,color:MU}}>Sin consignaciones aún.</p>:lastC.map(c=>{const l=libros.find(x=>x.id===c.libroId);const n=c.cantEnv-(c.cantVend||0)-(c.cantDev||0);return<div key={c.id} style={{padding:"7px 0",borderBottom:"1px solid #F3F4F6",fontSize:13}}><div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:N,fontWeight:600}}>{c.distribuidor}</span><span style={{color:"#2563EB",fontWeight:700}}>{n} en consig.</span></div><div style={{color:MU,fontSize:12}}>{trunc(l?.titulo,55)}</div></div>;})}</P>
     </div>
   </div>;
 }
 
-/* ── REGALOS GLOBAL ─────────────────────────────────────────── */
+/* ── REGALOS GLOBAL ── */
 function Regalos({libros,regalos,onSave,consignaciones}){
   const[open,setOpen]=useState(false);
   const[form,setForm]=useState({libroId:"",cantidad:"",fecha:new Date().toISOString().slice(0,10),stakeholder:"",nota:""});
@@ -593,17 +805,14 @@ function Regalos({libros,regalos,onSave,consignaciones}){
   const vis=regalos.filter(r=>{if(!filtro)return true;const q=filtro.toLowerCase();return r.stakeholder.toLowerCase().includes(q)||(libros.find(l=>l.id===r.libroId)?.titulo||"").toLowerCase().includes(q);}).sort((a,b)=>b.fecha.localeCompare(a.fecha));
   return<div>
     {toast&&<Toast msg={toast} onClose={()=>setToast("")}/>}
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
-      <div><h2 style={{margin:0,color:N,fontSize:17,fontFamily:"Libre Baskerville,serif"}}>Regalos y Donaciones</h2><p style={{margin:"4px 0 0",color:MU,fontSize:13}}>{regalos.length} registros · {regalos.reduce((s,r)=>s+r.cantidad,0).toLocaleString("es-CL")} ejemplares</p></div>
-      <Btn onClick={()=>setOpen(o=>!o)}>{open?"Cancelar":"+ Registrar regalo"}</Btn>
-    </div>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}><div><h2 style={{margin:0,color:N,fontSize:17,fontFamily:"Libre Baskerville,serif"}}>Regalos y Donaciones</h2><p style={{margin:"4px 0 0",color:MU,fontSize:13}}>{regalos.length} registros · {regalos.reduce((s,r)=>s+r.cantidad,0).toLocaleString("es-CL")} ejemplares</p></div><Btn onClick={()=>setOpen(o=>!o)}>{open?"Cancelar":"+ Registrar regalo"}</Btn></div>
     {open&&<div style={{background:W,borderRadius:8,padding:22,marginBottom:18,boxShadow:"0 1px 6px rgba(0,0,0,.07)",borderTop:`3px solid ${G}`}}>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
         <div style={{gridColumn:"1/-1"}}><LBL ch="Título *"/><Sel value={form.libroId} onChange={v=>setForm({...form,libroId:v})} options={libroOpts} placeholder="Selecciona un libro…" style={{width:"100%"}}/>{stats&&<div style={{marginTop:5,fontSize:12,color:MU}}>Disponible: <strong style={{color:stats.disp<20?"#D97706":GR}}>{stats.disp} ej.</strong></div>}</div>
         <div><LBL ch="Cantidad *"/><Inp type="number" value={form.cantidad} onChange={v=>setForm({...form,cantidad:v})} min="1" style={{width:"100%"}}/></div>
         <div><LBL ch="Fecha *"/><Inp type="date" value={form.fecha} onChange={v=>setForm({...form,fecha:v})} style={{width:"100%"}}/></div>
         <div style={{gridColumn:"1/-1"}}><LBL ch="Stakeholder *"/><Inp value={form.stakeholder} onChange={v=>setForm({...form,stakeholder:v})} placeholder="Ej: Ministerio de Educación…" style={{width:"100%"}}/></div>
-        <div style={{gridColumn:"1/-1"}}><LBL ch="Nota (opcional)"/><Inp value={form.nota} onChange={v=>setForm({...form,nota:v})} placeholder="Contexto…" style={{width:"100%"}}/></div>
+        <div style={{gridColumn:"1/-1"}}><LBL ch="Nota (opcional)"/><Inp value={form.nota} onChange={v=>setForm({...form,nota:v})} style={{width:"100%"}}/></div>
       </div>
       {err&&<div style={{color:RD,fontSize:12,marginTop:10}}>{err}</div>}
       <div style={{marginTop:14,display:"flex",gap:10}}><Btn onClick={submit}>Guardar</Btn><Btn v="ghost" onClick={()=>{setOpen(false);setErr("");}}>Cancelar</Btn></div>
@@ -625,7 +834,7 @@ function Regalos({libros,regalos,onSave,consignaciones}){
   </div>;
 }
 
-/* ── CONSIGNACIONES GLOBAL ──────────────────────────────────── */
+/* ── CONSIGNACIONES GLOBAL ── */
 function Consignaciones({libros,consignaciones,onSave,regalos}){
   const[open,setOpen]=useState(false);
   const[form,setForm]=useState({libroId:"",distribuidor:"",cantEnv:"",fechaEnv:new Date().toISOString().slice(0,10),notas:""});
@@ -640,10 +849,7 @@ function Consignaciones({libros,consignaciones,onSave,regalos}){
   const sorted=[...(filtEst==="todas"?consignaciones:consignaciones.filter(c=>c.estado===filtEst))].sort((a,b)=>b.fechaEnv.localeCompare(a.fechaEnv));
   return<div>
     {toast&&<Toast msg={toast} onClose={()=>setToast("")}/>}
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
-      <div><h2 style={{margin:0,color:N,fontSize:17,fontFamily:"Libre Baskerville,serif"}}>Consignaciones</h2><p style={{margin:"4px 0 0",color:MU,fontSize:13}}>{consignaciones.length} registros · {consignaciones.reduce((s,c)=>s+c.cantEnv,0)} enviados · {consignaciones.reduce((s,c)=>s+(c.cantVend||0),0)} vendidos</p></div>
-      <Btn onClick={()=>setOpen(o=>!o)}>{open?"Cancelar":"+ Nueva consignación"}</Btn>
-    </div>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}><div><h2 style={{margin:0,color:N,fontSize:17,fontFamily:"Libre Baskerville,serif"}}>Consignaciones</h2><p style={{margin:"4px 0 0",color:MU,fontSize:13}}>{consignaciones.length} registros · {consignaciones.reduce((s,c)=>s+c.cantEnv,0)} enviados</p></div><Btn onClick={()=>setOpen(o=>!o)}>{open?"Cancelar":"+ Nueva consignación"}</Btn></div>
     {open&&<div style={{background:W,borderRadius:8,padding:22,marginBottom:18,boxShadow:"0 1px 6px rgba(0,0,0,.07)",borderTop:"3px solid #2563EB"}}>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
         <div style={{gridColumn:"1/-1"}}><LBL ch="Título *"/><Sel value={form.libroId} onChange={v=>setForm({...form,libroId:v})} options={libroOpts} placeholder="Selecciona un libro…" style={{width:"100%"}}/>{stats&&<div style={{marginTop:5,fontSize:12,color:MU}}>Disponible: <strong>{stats.disp} ej.</strong></div>}</div>
@@ -655,8 +861,7 @@ function Consignaciones({libros,consignaciones,onSave,regalos}){
       {err&&<div style={{color:RD,fontSize:12,marginTop:10}}>{err}</div>}
       <div style={{marginTop:14,display:"flex",gap:10}}><Btn onClick={submit}>Guardar</Btn><Btn v="ghost" onClick={()=>{setOpen(false);setErr("");}}>Cancelar</Btn></div>
     </div>}
-    <div style={{marginBottom:14,display:"flex",gap:8,alignItems:"center"}}>
-      <span style={{fontSize:12,color:MU}}>Estado:</span>
+    <div style={{marginBottom:14,display:"flex",gap:8,alignItems:"center"}}><span style={{fontSize:12,color:MU}}>Estado:</span>
       {[["activa","Activas"],["liquidada","Liquidadas"],["devuelta","Devueltas"],["todas","Todas"]].map(([v,l])=><button key={v} onClick={()=>setFiltEst(v)} style={{padding:"5px 14px",borderRadius:20,border:`1px solid ${filtEst===v?N:"#D1D5DB"}`,background:filtEst===v?N:W,color:filtEst===v?W:MU,cursor:"pointer",fontSize:12,fontFamily:"DM Sans,sans-serif",fontWeight:filtEst===v?600:400}}>{l}</button>)}
     </div>
     {sorted.length===0?<div style={{background:W,borderRadius:8,padding:48,textAlign:"center",color:MU,fontSize:13}}>{consignaciones.length===0?"Sin consignaciones registradas.":"Sin registros."}</div>
@@ -678,33 +883,116 @@ function Consignaciones({libros,consignaciones,onSave,regalos}){
   </div>;
 }
 
-/* ── APP ─────────────────────────────────────────────────────── */
+/* ── APP ── */
 function App(){
-  const[libros,setLibros]=useState(()=>{const s=stGet("uss_libros");if(s)return s;stSet("uss_libros",SEED);return SEED;});
+  const[config,setConfig]=useState(()=>stGet("uss_odconfig")||null);
+  const[authState,setAuthState]=useState("init");
+  const[account,setAccount]=useState(null);
+  const[syncStatus,setSyncStatus]=useState("idle");
+  const[lastSync,setLastSync]=useState(null);
+  const[syncErr,setSyncErr]=useState("");
+  const[initMsg,setInitMsg]=useState("");
+  const[libros,setLibros]=useState(()=>stGet("uss_libros")||SEED);
   const[regalos,setRegalos]=useState(()=>stGet("uss_regalos")||[]);
-  const[consignaciones,setConsignaciones]=useState(()=>stGet("uss_consignaciones")||[]);
+  const[consignaciones,setCons]=useState(()=>stGet("uss_consignaciones")||[]);
   const[tab,setTab]=useState("dashboard");
 
-  const saveLibros=useCallback(d=>{setLibros(d);stSet("uss_libros",d);},[]);
-  const saveRegalos=useCallback(d=>{setRegalos(d);stSet("uss_regalos",d);},[]);
-  const saveCons=useCallback(d=>{setConsignaciones(d);stSet("uss_consignaciones",d);},[]);
+  useEffect(()=>{
+    if(!config){setAuthState("unconfigured");return;}
+    buildMsal(config.clientId);
+    const accounts=msalInst.getAllAccounts();
+    if(accounts.length>0){setAccount(accounts[0]);bootLoad();}
+    else setAuthState("logged-out");
+  },[config?.clientId]);
 
-  const TABS=[["dashboard","📊 Dashboard"],["catalogo","📚 Catálogo"],["regalos","🎁 Regalos"],["consignaciones","📦 Consignaciones"]];
+  async function bootLoad(){
+    setAuthState("loading");setInitMsg("Conectando con OneDrive…");
+    try{
+      const token=await getToken();
+      const exists=await checkFileExists(token,config.filePath);
+      if(!exists){setInitMsg("Creando archivo Excel en OneDrive…");await createExcelOnOneDrive(token,config.filePath);stSet("uss_libros",SEED);stSet("uss_regalos",[]);stSet("uss_consignaciones",[]);}
+      else{
+        setInitMsg("Cargando datos desde Excel…");
+        const d=await loadFromOneDrive(token,config.filePath);
+        if(d.libros.length>0){setLibros(d.libros);stSet("uss_libros",d.libros);}
+        setCons(d.consignaciones);stSet("uss_consignaciones",d.consignaciones);
+        setRegalos(d.regalos);stSet("uss_regalos",d.regalos);
+      }
+      setAuthState("ready");setLastSync(new Date());setInitMsg("");
+    }catch(e){console.error(e);setSyncErr(e.message);setAuthState("error");setInitMsg("");}
+  }
+
+  async function handleLogin(){
+    try{buildMsal(config.clientId);const acc=await msalLogin();setAccount(acc);await bootLoad();}
+    catch(e){setSyncErr("Error al iniciar sesión: "+e.message);setAuthState("logged-out");}
+  }
+
+  const syncLibros=useCallback(async(data)=>{
+    if(authState!=="ready")return;setSyncStatus("syncing");setSyncErr("");
+    try{const t=await getToken();await writeSheet(t,config.filePath,"Libros",[LIBRO_HDR,...data.map(libroToRow)]);setSyncStatus("idle");setLastSync(new Date());}
+    catch(e){setSyncStatus("error");setSyncErr("OneDrive: "+e.message);}
+  },[authState,config]);
+
+  const syncRegalos=useCallback(async(data)=>{
+    if(authState!=="ready")return;setSyncStatus("syncing");setSyncErr("");
+    try{const t=await getToken();await writeSheet(t,config.filePath,"Regalos",[REG_HDR,...data.map(r=>[r.id,r.libroId,r.cantidad,r.fecha,r.stakeholder,r.nota||""])]);setSyncStatus("idle");setLastSync(new Date());}
+    catch(e){setSyncStatus("error");setSyncErr("OneDrive: "+e.message);}
+  },[authState,config]);
+
+  const syncCons=useCallback(async(data)=>{
+    if(authState!=="ready")return;setSyncStatus("syncing");setSyncErr("");
+    try{const t=await getToken();await writeSheet(t,config.filePath,"Consignaciones",[CONS_HDR,...data.map(c=>[c.id,c.libroId,c.distribuidor,c.cantEnv,c.cantVend||0,c.cantDev||0,c.fechaEnv,c.notas||"",c.estado])]);setSyncStatus("idle");setLastSync(new Date());}
+    catch(e){setSyncStatus("error");setSyncErr("OneDrive: "+e.message);}
+  },[authState,config]);
+
+  const saveLibros=useCallback(d=>{setLibros(d);stSet("uss_libros",d);syncLibros(d);},[syncLibros]);
+  const saveRegalos=useCallback(d=>{setRegalos(d);stSet("uss_regalos",d);syncRegalos(d);},[syncRegalos]);
+  const saveCons=useCallback(d=>{setCons(d);stSet("uss_consignaciones",d);syncCons(d);},[syncCons]);
+
+  function resetConfig(){if(window.confirm("¿Resetear configuración OneDrive? Los datos locales se mantienen.")){localStorage.removeItem("uss_odconfig");setConfig(null);setAuthState("unconfigured");}}
+
+  if(authState==="unconfigured")return<SetupScreen onSave={c=>{setConfig(c);stSet("uss_odconfig",c);}}/>;
+
+  if(authState==="loading")return<div style={{minHeight:"100vh",background:CR,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16}}>
+    <div style={{color:N,fontSize:15,fontFamily:"Libre Baskerville,serif"}}>Inventario Ediciones USS</div>
+    <div style={{color:MU,fontSize:13}}>{initMsg||"Cargando…"}</div>
+    <div style={{width:200,height:3,background:"#E5E7EB",borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",background:G,borderRadius:2,animation:"progress 1.2s infinite ease-in-out"}}/></div>
+  </div>;
+
+  const syncBadge=()=>{
+    if(authState==="ready"){
+      if(syncStatus==="syncing")return<span style={{fontSize:11,color:G}}>↺ Guardando en OneDrive…</span>;
+      if(syncStatus==="error")return<span style={{fontSize:11,color:"#FCA5A5"}}>⚠ Error sincronizando</span>;
+      if(lastSync)return<span style={{fontSize:11,color:"rgba(255,255,255,.5)"}}>✓ OneDrive · {lastSync.toLocaleTimeString("es-CL",{hour:"2-digit",minute:"2-digit"})}</span>;
+    }
+    if(authState==="logged-out")return<Btn sm v="secondary" onClick={handleLogin}>Conectar OneDrive</Btn>;
+    if(authState==="error")return<div style={{display:"flex",gap:8,alignItems:"center"}}><span style={{fontSize:11,color:"#FCA5A5"}}>⚠ Sin conexión</span><Btn sm v="secondary" onClick={bootLoad}>Reintentar</Btn></div>;
+    return null;
+  };
+
+  const TABS=[["dashboard","📊 Dashboard"],["catalogo","📚 Catálogo"],["scanner","🔍 Escáner"],["regalos","🎁 Regalos"],["consignaciones","📦 Consignaciones"]];
+
   return<div style={{minHeight:"100vh",background:CR}}>
-    <div style={{background:N,padding:"14px 28px",display:"flex",alignItems:"center",gap:16}}>
+    <div style={{background:N,padding:"13px 28px",display:"flex",alignItems:"center",gap:16}}>
       <div style={{width:3,height:36,background:G,borderRadius:2}}/>
       <div>
         <div style={{color:G,fontSize:10,fontWeight:600,letterSpacing:"2px",textTransform:"uppercase"}}>Universidad San Sebastián</div>
-        <div style={{color:W,fontSize:18,fontWeight:700,fontFamily:"Libre Baskerville,serif",lineHeight:1.2}}>Inventario Ediciones USS</div>
+        <div style={{color:W,fontSize:17,fontWeight:700,fontFamily:"Libre Baskerville,serif",lineHeight:1.2}}>Inventario Ediciones USS</div>
       </div>
-      <div style={{marginLeft:"auto",fontSize:11,color:"rgba(255,255,255,.4)"}}>{libros.length} títulos en catálogo</div>
+      <div style={{marginLeft:"auto",display:"flex",gap:14,alignItems:"center"}}>
+        {syncBadge()}
+        {account&&<span style={{fontSize:11,color:"rgba(255,255,255,.35)",maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{account.username||account.name}</span>}
+        <button onClick={resetConfig} title="Configuración" style={{background:"none",border:"none",cursor:"pointer",color:"rgba(255,255,255,.3)",fontSize:16,padding:0,lineHeight:1}}>⚙</button>
+      </div>
     </div>
+    {syncErr&&<div style={{background:RDL,borderBottom:"1px solid #FCA5A5",padding:"8px 28px",fontSize:12,color:RD,display:"flex",justifyContent:"space-between",alignItems:"center"}}><span>⚠ {syncErr}</span><button onClick={()=>setSyncErr("")} style={{background:"none",border:"none",cursor:"pointer",color:RD,fontSize:16}}>✕</button></div>}
     <div style={{background:W,borderBottom:`2px solid ${G}`,display:"flex",padding:"0 28px",overflowX:"auto"}}>
       {TABS.map(([k,l])=><button key={k} onClick={()=>setTab(k)} style={{padding:"11px 18px",border:"none",background:"none",cursor:"pointer",whiteSpace:"nowrap",fontWeight:tab===k?700:400,color:tab===k?N:MU,borderBottom:`3px solid ${tab===k?G:"transparent"}`,fontSize:13,fontFamily:"DM Sans,sans-serif"}}>{l}</button>)}
     </div>
     <div style={{padding:"22px 28px",maxWidth:1500,margin:"0 auto"}}>
       {tab==="dashboard"      &&<Dashboard libros={libros} regalos={regalos} consignaciones={consignaciones}/>}
       {tab==="catalogo"       &&<Catalogo libros={libros} regalos={regalos} consignaciones={consignaciones} onSaveLibros={saveLibros} onSaveRegalos={saveRegalos} onSaveConsignaciones={saveCons}/>}
+      {tab==="scanner"        &&<Scanner libros={libros} regalos={regalos} consignaciones={consignaciones} onSaveRegalos={saveRegalos} onSaveConsignaciones={saveCons} onSaveLibros={saveLibros}/>}
       {tab==="regalos"        &&<Regalos libros={libros} regalos={regalos} onSave={saveRegalos} consignaciones={consignaciones}/>}
       {tab==="consignaciones" &&<Consignaciones libros={libros} consignaciones={consignaciones} onSave={saveCons} regalos={regalos}/>}
     </div>
