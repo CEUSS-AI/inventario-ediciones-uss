@@ -609,6 +609,7 @@ function Catalogo({libros,regalos,consignaciones,onSaveLibros,onSaveRegalos,onSa
 
 /* ── ESCÁNER ── */
 function Scanner({libros,regalos,consignaciones,onSaveRegalos,onSaveLibros,onSaveConsignaciones}){
+  const isbnRef=useRef("");
   const[isbn,setIsbn]=useState("");
   const[found,setFound]=useState(null);
   const[notFound,setNotFound]=useState(false);
@@ -1014,4 +1015,4 @@ function App(){
 ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
 </script>
 </body>
-</html>  
+</html>
