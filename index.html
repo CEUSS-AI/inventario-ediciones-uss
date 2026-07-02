@@ -623,11 +623,13 @@ function Scanner({libros,regalos,consignaciones,onSaveRegalos,onSaveLibros,onSav
 
   function reset(){setFound(null);setAction(null);setQty("1");setStakeholder("");setDistribuidor("");setTimeout(()=>inputRef.current?.focus(),80);}
 
-  function handleScan(val){
-    const clean=val.trim();if(!clean)return;
+  function handleScan(){
+    const clean=isbnRef.current.trim();
+    if(!clean)return;
     const book=libros.find(l=>l.isbn&&l.isbn.trim()===clean);
     if(book){setFound(book);setNotFound(false);setAction(null);setQty("1");}
     else{setFound(null);setNotFound(true);}
+    isbnRef.current="";
     setIsbn("");
     setTimeout(()=>inputRef.current?.focus(),50);
   }
@@ -681,10 +683,13 @@ function Scanner({libros,regalos,consignaciones,onSaveRegalos,onSaveLibros,onSav
         <div style={{flex:1}}>
           <LBL ch="Escanea o escribe un ISBN"/>
           <div style={{display:"flex",gap:10}}>
-            <Inp value={isbn} onChange={setIsbn} placeholder="Apunta el lector al código de barras…"
-              autoFocus={true} onKeyDown={e=>{if(e.key==="Enter")handleScan(isbn);}}
-              style={{flex:1,fontSize:15,padding:"10px 14px",border:`2px solid ${G}`,background:"#FFFBF0"}}/>
-            <Btn v="secondary" onClick={()=>handleScan(isbn)}>Buscar</Btn>
+            <input ref={inputRef} value={isbn}
+              onChange={e=>{isbnRef.current=e.target.value;setIsbn(e.target.value);}}
+              onKeyDown={e=>{if(e.key==="Enter")handleScan();}}
+              placeholder="Apunta el lector al código de barras…"
+              autoFocus
+              style={{flex:1,fontSize:15,padding:"10px 14px",border:`2px solid ${G}`,background:"#FFFBF0",borderRadius:6,outline:"none",fontFamily:"DM Sans,sans-serif",color:N}}/>
+            <Btn v="secondary" onClick={handleScan}>Buscar</Btn>
           </div>
         </div>
       </div>
