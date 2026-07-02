@@ -832,6 +832,129 @@ function Scanner({libros,regalos,consignaciones,onSaveRegalos,onSaveLibros,onSav
   </div>;
 }
 
+/* ── TRASLADOS ── */
+function Traslados({libros,bodegas,onSaveLibros}){
+  // Un traslado tiene: origen, y N líneas de (libroId, cantidad, destino)
+  const[origen,setOrigen]=useState("");
+  const[lineas,setLineas]=useState([]); // [{libroId,cant,destino}]
+  const[toast,setToast]=useState("");
+  const[err,setErr]=useState("");
+  const[historial,setHistorial]=useState(()=>{
+    try{const h=localStorage.getItem("uss_traslados");return h?JSON.parse(h):[];}catch{return[];}
+  });
+
+  function saveHist(h){setHistorial(h);try{localStorage.setItem("uss_traslados",JSON.stringify(h));}catch{}}
+
+  function addLinea(){
+    if(!origen){setErr("Selecciona la bodega de origen primero.");return;}
+    setLineas(l=>[...l,{id:uid(),libroId:"",cant:"1",destino:""}]);
+    setErr("");
+  }
+
+  function updLinea(id,key,val){setLineas(l=>l.map(x=>x.id===id?{...x,[key]:val}:x));}
+  function delLinea(id){setLineas(l=>l.filter(x=>x.id!==id));}
+
+  function confirmar(){
+    if(!origen){setErr("Selecciona la bodega de origen.");return;}
+    if(lineas.length===0){setErr("Agrega al menos un título al traslado.");return;}
+    for(const l of lineas){
+      if(!l.libroId){setErr("Selecciona el libro en todas las líneas.");return;}
+      if(!l.destino){setErr("Selecciona el destino en todas las líneas.");return;}
+      if(l.origen===l.destino){setErr("El origen y destino no pueden ser iguales.");return;}
+      const q=parseInt(l.cant)||0;
+      if(q<=0){setErr("La cantidad debe ser mayor a 0.");return;}
+      const libro=libros.find(x=>x.id===l.libroId);
+      const enOrigen=libro?.bodegas?.[origen]||0;
+      if(q>enOrigen){setErr(`"${libro?.titulo?.slice(0,40)}" solo tiene ${enOrigen} ejs. en ${origen}.`);return;}
+    }
+    // Aplica todos los movimientos
+    const cambios={};
+    lineas.forEach(l=>{
+      const q=parseInt(l.cant)||0;
+      if(!cambios[l.libroId])cambios[l.libroId]={};
+      cambios[l.libroId][origen]=(cambios[l.libroId][origen]||0)-q;
+      cambios[l.libroId][l.destino]=(cambios[l.libroId][l.destino]||0)+q;
+    });
+    const nuevosLibros=libros.map(l=>{
+      if(!cambios[l.id])return l;
+      const newBod={...l.bodegas};
+      Object.entries(cambios[l.id]).forEach(([bod,delta])=>{newBod[bod]=(newBod[bod]||0)+delta;});
+      return{...l,bodegas:newBod};
+    });
+    onSaveLibros(nuevosLibros);
+    // Guardar en historial
+    const reg={id:uid(),fecha:new Date().toISOString().slice(0,10),origen,lineas:lineas.map(l=>({
+      titulo:libros.find(x=>x.id===l.libroId)?.titulo||l.libroId,
+      cant:parseInt(l.cant)||0,destino:l.destino
+    }))};
+    saveHist([reg,...historial].slice(0,50));
+    setToast(`Traslado confirmado — ${lineas.length} línea(s) actualizadas.`);
+    setOrigen("");setLineas([]);setErr("");
+  }
+
+  const libroOpts=libros.map(l=>({v:l.id,l:trunc(l.titulo,60)}));
+  const bodOpts=bodegas.map(b=>({v:b,l:b}));
+  const destOpts=(orig)=>bodegas.filter(b=>b!==orig).map(b=>({v:b,l:b}));
+
+  return<div>
+    {toast&&<Toast msg={toast} onClose={()=>setToast("")}/>}
+    <h2 style={{color:N,fontSize:17,fontFamily:"Libre Baskerville,serif",marginBottom:6}}>Traslados entre bodegas</h2>
+    <p style={{color:MU,fontSize:13,marginBottom:20,lineHeight:1.6}}>Registra el movimiento de libros de una bodega de origen a uno o varios destinos. Las fichas se actualizan automáticamente al confirmar.</p>
+
+    {/* Formulario */}
+    <div style={{background:W,borderRadius:10,padding:22,marginBottom:20,boxShadow:"0 1px 6px rgba(0,0,0,.07)",border:`2px solid ${G}`}}>
+      <div style={{marginBottom:16}}>
+        <LBL ch="Bodega de origen"/>
+        <Sel value={origen} onChange={v=>{setOrigen(v);setLineas([]);}} placeholder="Selecciona bodega de origen…" options={bodOpts} style={{minWidth:240}}/>
+      </div>
+
+      {origen&&<div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 80px 1fr 32px",gap:10,marginBottom:8,alignItems:"center"}}>
+          <div style={{fontSize:11,fontWeight:700,color:N,textTransform:"uppercase",letterSpacing:".5px"}}>Título</div>
+          <div style={{fontSize:11,fontWeight:700,color:N,textTransform:"uppercase",letterSpacing:".5px"}}>Cant.</div>
+          <div style={{fontSize:11,fontWeight:700,color:N,textTransform:"uppercase",letterSpacing:".5px"}}>Destino</div>
+          <div/>
+        </div>
+        {lineas.map(l=>{
+          const libro=libros.find(x=>x.id===l.libroId);
+          const enOrigen=libro?.bodegas?.[origen]||0;
+          return<div key={l.id} style={{display:"grid",gridTemplateColumns:"1fr 80px 1fr 32px",gap:10,marginBottom:8,alignItems:"center"}}>
+            <Sel value={l.libroId} onChange={v=>updLinea(l.id,"libroId",v)} placeholder="Selecciona título…" options={libroOpts} style={{width:"100%"}}/>
+            <div>
+              <Inp type="number" value={l.cant} onChange={v=>updLinea(l.id,"cant",v)} min="1" max={enOrigen||undefined} style={{width:"100%"}}/>
+              {l.libroId&&<div style={{fontSize:10,color:enOrigen===0?RD:MU,marginTop:2}}>Disp: {enOrigen}</div>}
+            </div>
+            <Sel value={l.destino} onChange={v=>updLinea(l.id,"destino",v)} placeholder="Bodega destino…" options={destOpts(origen)} style={{width:"100%"}}/>
+            <button onClick={()=>delLinea(l.id)} style={{background:"none",border:"none",cursor:"pointer",color:RD,fontSize:18,padding:0,lineHeight:1}}>✕</button>
+          </div>;
+        })}
+        <div style={{display:"flex",gap:10,marginTop:12}}>
+          <Btn v="ghost" onClick={addLinea}>+ Agregar título</Btn>
+          {lineas.length>0&&<Btn v="green" onClick={confirmar}>✓ Confirmar traslado</Btn>}
+        </div>
+        {err&&<div style={{color:RD,fontSize:12,marginTop:10}}>{err}</div>}
+      </div>}
+      {!origen&&<div style={{color:MU,fontSize:13,marginTop:8}}>Selecciona la bodega de origen para comenzar.</div>}
+    </div>
+
+    {/* Historial */}
+    {historial.length>0&&<div>
+      <div style={{fontWeight:700,color:N,fontSize:14,marginBottom:12}}>Historial de traslados</div>
+      {historial.map(h=><div key={h.id} style={{background:W,borderRadius:8,padding:"14px 18px",marginBottom:10,boxShadow:"0 1px 4px rgba(0,0,0,.06)",borderLeft:`3px solid ${G}`}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+          <span style={{fontWeight:600,color:N,fontSize:13}}>Desde <span style={{color:"#2563EB"}}>{h.origen}</span></span>
+          <span style={{fontSize:12,color:MU}}>{fD(h.fecha)}</span>
+        </div>
+        {h.lineas.map((l,i)=><div key={i} style={{fontSize:12,color:MU,display:"flex",gap:8,marginBottom:3}}>
+          <span style={{color:N,fontWeight:500}}>{trunc(l.titulo,45)}</span>
+          <span>→ <strong style={{color:"#2563EB"}}>{l.destino}</strong></span>
+          <span style={{color:G,fontWeight:700}}>{l.cant} ejs.</span>
+        </div>)}
+      </div>)}
+    </div>}
+  </div>;
+}
+
 /* ── DASHBOARD ── */
 function Dashboard({libros,regalos,consignaciones}){
   const gs=id=>calcStock(id,regalos,consignaciones,libros);
@@ -1035,7 +1158,7 @@ function App(){
     <div style={{width:200,height:3,background:"#E5E7EB",borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",background:G,borderRadius:2,animation:"progress 1.2s infinite ease-in-out"}}/></div>
   </div>;
 
-  const TABS=[["dashboard","📊 Dashboard"],["catalogo","📚 Catálogo"],["scanner","🔍 Escáner"],["regalos","🎁 Regalos"],["consignaciones","📦 Consignaciones"]];
+  const TABS=[["dashboard","📊 Dashboard"],["catalogo","📚 Catálogo"],["scanner","🔍 Escáner"],["traslados","🚛 Traslados"],["regalos","🎁 Regalos"],["consignaciones","📦 Consignaciones"]];
 
   const syncBadge=()=>{
     if(syncStatus==="syncing")return<span style={{fontSize:11,color:G}}>↺ Guardando en Sheets…</span>;
@@ -1064,6 +1187,7 @@ function App(){
       {tab==="dashboard"      &&<Dashboard libros={libros} regalos={regalos} consignaciones={consignaciones}/>}
       {tab==="catalogo"       &&<Catalogo libros={libros} regalos={regalos} consignaciones={consignaciones} onSaveLibros={saveLibros} onSaveRegalos={saveRegalos} onSaveConsignaciones={saveCons} bodegas={bodegas} onSaveBodegas={saveBodegas}/>}
       {tab==="scanner"        &&<Scanner libros={libros} regalos={regalos} consignaciones={consignaciones} onSaveRegalos={saveRegalos} onSaveLibros={saveLibros} onSaveConsignaciones={saveCons} bodegas={bodegas}/>}
+      {tab==="traslados"      &&<Traslados libros={libros} bodegas={bodegas} onSaveLibros={saveLibros}/>}
       {tab==="regalos"        &&<Regalos libros={libros} regalos={regalos} onSave={saveRegalos} consignaciones={consignaciones}/>}
       {tab==="consignaciones" &&<Consignaciones libros={libros} consignaciones={consignaciones} onSave={saveCons} regalos={regalos}/>}
     </div>
