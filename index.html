@@ -280,11 +280,12 @@ function SH({title,action}){return<div style={{display:"flex",justifyContent:"sp
 function LBL({ch}){return<label style={{fontSize:11,fontWeight:600,color:N,display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:".5px"}}>{ch}</label>;}
 
 /* ── Bodegas Section ── */
-function BodegasSection({bodegas,onChange}){
-  const total=BOD_NAMES.reduce((s,k)=>s+(bodegas[k]||0),0);
+function BodegasSection({bodegas,onChange,bodegaNames}){
+  const names=bodegaNames||BOD_NAMES;
+  const total=names.reduce((s,k)=>s+(bodegas[k]||0),0);
   return<div>
     <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:8}}>
-      {BOD_NAMES.map(k=>{const v=bodegas[k]||0;return<div key={k} style={{background:v>0?"#EFF6FF":"#F9FAFB",border:`1px solid ${v>0?"#BFDBFE":"#E5E7EB"}`,borderRadius:8,padding:"10px 12px"}}>
+      {names.map(k=>{const v=bodegas[k]||0;return<div key={k} style={{background:v>0?"#EFF6FF":"#F9FAFB",border:`1px solid ${v>0?"#BFDBFE":"#E5E7EB"}`,borderRadius:8,padding:"10px 12px"}}>
         <div style={{fontSize:10,fontWeight:700,color:MU,textTransform:"uppercase",letterSpacing:".5px",marginBottom:6}}>{k}</div>
         {onChange?<Inp type="number" value={v} onChange={val=>onChange({...bodegas,[k]:parseInt(val)||0})} min="0" style={{width:"100%",padding:"4px 8px",fontSize:14,fontWeight:700,color:v>0?"#2563EB":MU}}/>
           :<div style={{fontSize:20,fontWeight:700,color:v>0?"#2563EB":MU,fontFamily:"Libre Baskerville,serif"}}>{v}</div>}
@@ -387,7 +388,7 @@ const BLANK={titulo:"",autor:"",isbn:"",pN:"",pU:"",ano:"",si:"",me:"0",cat:"His
 function libroToForm(l){return{titulo:l.titulo||"",autor:l.autor||"",isbn:l.isbn||"",pN:l.pN??"",pU:l.pU??"",ano:l.ano??"",si:l.si??"",me:l.me??"0",cat:CATS.includes(l.cat)?l.cat:"__otra__",catCustom:CATS.includes(l.cat)?"":l.cat};}
 function formToLibro(f,id,bodegas){const cat=f.cat==="__otra__"?(f.catCustom.trim()||"Sin categoría"):f.cat;return{id,titulo:f.titulo.trim(),autor:f.autor.trim(),isbn:f.isbn.trim()||null,pN:toNum(f.pN),pU:toNum(f.pU),ano:toNum(f.ano),si:parseInt(f.si)||0,me:parseInt(f.me)||0,cat,bodegas:bodegas||BLANK_BOD()};}
 
-function BookForm({initial=BLANK,initBod,onSave,onCancel,isEdit=false}){
+function BookForm({initial=BLANK,initBod,bodegaNames,onSave,onCancel,isEdit=false}){
   const[f,setF]=useState(initial);
   const[bod,setBod]=useState(initBod||BLANK_BOD());
   const[err,setErr]=useState("");
@@ -410,7 +411,7 @@ function BookForm({initial=BLANK,initBod,onSave,onCancel,isEdit=false}){
           {f.cat==="__otra__"&&<Inp value={f.catCustom} onChange={set("catCustom")} placeholder="Nueva categoría" style={{flex:1}}/>}
         </div>
       </div>
-      <div style={{gridColumn:"1/-1"}}><LBL ch="Stock por bodega"/><BodegasSection bodegas={bod} onChange={setBod}/></div>
+      <div style={{gridColumn:"1/-1"}}><LBL ch="Stock por bodega"/><BodegasSection bodegas={bod} onChange={setBod} bodegaNames={bodegaNames}/></div>
     </div>
     {err&&<div style={{color:RD,fontSize:12,marginBottom:10}}>{err}</div>}
     <div style={{display:"flex",gap:10}}>
@@ -421,7 +422,7 @@ function BookForm({initial=BLANK,initBod,onSave,onCancel,isEdit=false}){
 }
 
 /* ── BOOK DETAIL PANEL ── */
-function BookDetailPanel({libro,regalos,consignaciones,libros,onSaveRegalos,onSaveConsignaciones,onSaveLibros,onClose}){
+function BookDetailPanel({libro,regalos,consignaciones,libros,bodegaNames,onSaveRegalos,onSaveConsignaciones,onSaveLibros,onClose}){
   const ref=useRef(null);
   const[toast,setToast]=useState("");
   const[editingInfo,setEditingInfo]=useState(false);
@@ -473,7 +474,7 @@ function BookDetailPanel({libro,regalos,consignaciones,libros,onSaveRegalos,onSa
         <span style={{fontWeight:700,fontSize:14,color:N}}>Editar información</span>
         <Btn sm v="danger" onClick={handleDelete}>🗑 Eliminar libro</Btn>
       </div>
-      <BookForm initial={libroToForm(libro)} initBod={libro.bodegas||BLANK_BOD()} onSave={handleSaveInfo} onCancel={()=>setEditingInfo(false)} isEdit={true}/>
+      <BookForm initial={libroToForm(libro)} initBod={libro.bodegas||BLANK_BOD()} bodegaNames={bodegaNames} onSave={handleSaveInfo} onCancel={()=>setEditingInfo(false)} isEdit={true}/>
     </div>}
     <div style={{padding:"14px 22px",background:"#F9F7F3",borderBottom:`1px solid ${G2}`}}>
       <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10,marginBottom:14}}>
@@ -486,7 +487,7 @@ function BookDetailPanel({libro,regalos,consignaciones,libros,onSaveRegalos,onSa
       </div>
       {s.disp<20&&s.disp>=0&&<div style={{marginBottom:12,padding:"7px 14px",background:s.disp===0?RDL:ORL,borderRadius:6,fontSize:12,color:s.disp===0?RD:OR,fontWeight:500}}>{s.disp===0?"⚠ Título agotado.":`⚠ Stock bajo — solo ${s.disp} ejs.`}</div>}
       <div style={{fontSize:11,fontWeight:700,color:N,textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>📦 Distribución por bodega</div>
-      <BodegasSection bodegas={libro.bodegas||BLANK_BOD()}/>
+      <BodegasSection bodegas={libro.bodegas||BLANK_BOD()} bodegaNames={bodegaNames}/>
     </div>
     <div style={{padding:"20px 22px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
       <div>
@@ -551,7 +552,62 @@ function BookDetailPanel({libro,regalos,consignaciones,libros,onSaveRegalos,onSa
 }
 
 /* ── CATÁLOGO ── */
-function Catalogo({libros,regalos,consignaciones,onSaveLibros,onSaveRegalos,onSaveConsignaciones}){
+
+/* ── GESTIONAR BODEGAS ── */
+function BodegaManager({bodegas,libros,onSaveBodegas,onSaveLibros}){
+  const[open,setOpen]=useState(false);
+  const[nueva,setNueva]=useState("");
+  const[err,setErr]=useState("");
+
+  function addBodega(){
+    const name=nueva.trim();
+    if(!name){setErr("Escribe un nombre.");return;}
+    if(bodegas.includes(name)){setErr("Ya existe una bodega con ese nombre.");return;}
+    const newList=[...bodegas,name];
+    const newLibros=libros.map(l=>({...l,bodegas:{...l.bodegas,[name]:0}}));
+    onSaveBodegas(newList);
+    onSaveLibros(newLibros);
+    setNueva("");setErr("");
+  }
+
+  function delBodega(name){
+    const totalStock=libros.reduce((s,l)=>s+(l.bodegas?.[name]||0),0);
+    const msg=totalStock>0
+      ?`La bodega "${name}" tiene ${totalStock} ejemplares registrados. Al eliminarla, ese conteo se perderá. ¿Continuar?`
+      :`¿Eliminar la bodega "${name}"?`;
+    if(!window.confirm(msg))return;
+    const newList=bodegas.filter(b=>b!==name);
+    const newLibros=libros.map(l=>{const bod={...l.bodegas};delete bod[name];return{...l,bodegas:bod};});
+    onSaveBodegas(newList);
+    onSaveLibros(newLibros);
+  }
+
+  return<div style={{marginBottom:16}}>
+    <button onClick={()=>setOpen(o=>!o)} style={{background:"none",border:`1px solid #D1D5DB`,borderRadius:6,padding:"6px 14px",cursor:"pointer",fontSize:12,color:MU,fontFamily:"DM Sans,sans-serif",display:"flex",alignItems:"center",gap:6}}>
+      🏭 {open?"Ocultar":"Gestionar bodegas"} ({bodegas.length})
+    </button>
+    {open&&<div className="pin" style={{marginTop:10,background:W,borderRadius:8,padding:18,border:"1px solid #E5E7EB",boxShadow:"0 1px 6px rgba(0,0,0,.07)"}}>
+      <div style={{fontWeight:700,fontSize:13,color:N,marginBottom:12}}>Bodegas activas</div>
+      <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:16}}>
+        {bodegas.map(b=><div key={b} style={{display:"flex",alignItems:"center",gap:6,background:"#EFF6FF",border:"1px solid #BFDBFE",borderRadius:20,padding:"4px 12px"}}>
+          <span style={{fontSize:12,fontWeight:600,color:BL}}>{b}</span>
+          <button onClick={()=>delBodega(b)} style={{background:"none",border:"none",cursor:"pointer",color:RD,fontSize:14,lineHeight:1,padding:0}}>✕</button>
+        </div>)}
+      </div>
+      <div style={{display:"flex",gap:8,alignItems:"flex-end"}}>
+        <div style={{flex:1}}>
+          <LBL ch="Nueva bodega"/>
+          <Inp value={nueva} onChange={setNueva} placeholder="Ej: Sede Concepción" onKeyDown={e=>{if(e.key==="Enter")addBodega();}} style={{width:"100%"}}/>
+        </div>
+        <Btn v="green" onClick={addBodega}>+ Agregar</Btn>
+      </div>
+      {err&&<div style={{color:RD,fontSize:12,marginTop:8}}>{err}</div>}
+      <div style={{marginTop:10,fontSize:11,color:MU}}>Eliminar una bodega con stock solo borra el registro del conteo — los libros físicos siguen en bodega.</div>
+    </div>}
+  </div>;
+}
+
+function Catalogo({libros,regalos,consignaciones,onSaveLibros,onSaveRegalos,onSaveConsignaciones,bodegas,onSaveBodegas}){
   const[q,setQ]=useState(""),[cat,setCat]=useState(""),[selId,setSelId]=useState(null);
   const[addOpen,setAddOpen]=useState(false);
   const[toast,setToast]=useState("");
@@ -561,6 +617,7 @@ function Catalogo({libros,regalos,consignaciones,onSaveLibros,onSaveRegalos,onSa
   const TH=({ch,center})=><th style={{padding:"10px 12px",textAlign:center?"center":"left",fontWeight:600,whiteSpace:"nowrap",color:W,fontSize:13}}>{ch}</th>;
   return<div>
     {toast&&<Toast msg={toast} onClose={()=>setToast("")}/>}
+    <BodegaManager bodegas={bodegas} libros={libros} onSaveBodegas={onSaveBodegas} onSaveLibros={onSaveLibros}/>
     <div style={{display:"flex",gap:10,marginBottom:18,flexWrap:"wrap",alignItems:"center"}}>
       <Inp value={q} onChange={setQ} placeholder="Buscar título, autor o ISBN…" style={{flex:1,minWidth:220}}/>
       <Sel value={cat} onChange={setCat} placeholder="Todas las categorías" options={cats.map(c=>({v:c,l:c}))} style={{minWidth:200}}/>
@@ -595,6 +652,7 @@ function Catalogo({libros,regalos,consignaciones,onSaveLibros,onSaveRegalos,onSa
               </tr>
               {isSel&&<tr><td colSpan={9} style={{padding:"0 14px 14px"}}>
                 <BookDetailPanel libro={l} regalos={regalos} consignaciones={consignaciones} libros={libros}
+                  bodegaNames={bodegas}
                   onSaveRegalos={onSaveRegalos} onSaveConsignaciones={onSaveConsignaciones}
                   onSaveLibros={d=>{onSaveLibros(d);if(!d.find(x=>x.id===l.id))setSelId(null);}}
                   onClose={()=>setSelId(null)}/>
@@ -608,44 +666,52 @@ function Catalogo({libros,regalos,consignaciones,onSaveLibros,onSaveRegalos,onSa
 }
 
 /* ── ESCÁNER ── */
-function Scanner({libros,regalos,consignaciones,onSaveRegalos,onSaveLibros,onSaveConsignaciones}){
-  const isbnRef=useRef("");
-  const[isbn,setIsbn]=useState("");
+function Scanner({libros,regalos,consignaciones,onSaveRegalos,onSaveLibros,onSaveConsignaciones,bodegas}){
+  const scanRef=useRef(null); // ref directo al input del DOM
   const[found,setFound]=useState(null);
   const[notFound,setNotFound]=useState(false);
   const[action,setAction]=useState(null);
   const[qty,setQty]=useState("1");
   const[stakeholder,setStakeholder]=useState("");
   const[distribuidor,setDistribuidor]=useState("");
+  const[bodegaEntrada,setBodegaEntrada]=useState("");
   const[fecha,setFecha]=useState(new Date().toISOString().slice(0,10));
   const[msg,setMsg]=useState("");
-  const inputRef=useRef(null);
-  useEffect(()=>{inputRef.current?.focus();},[]);
+  const[display,setDisplay]=useState(""); // solo para mostrar en pantalla
+  useEffect(()=>{setTimeout(()=>scanRef.current?.focus(),100);},[]);
 
-  function reset(){setFound(null);setAction(null);setQty("1");setStakeholder("");setDistribuidor("");setTimeout(()=>inputRef.current?.focus(),80);}
+  function reset(){
+    setFound(null);setAction(null);setQty("1");setStakeholder("");setDistribuidor("");
+    setDisplay("");
+    if(scanRef.current){scanRef.current.value="";scanRef.current.focus();}
+  }
 
   function handleScan(){
-    const clean=isbnRef.current.trim();
+    // Lee directamente del DOM — nunca falla por estado desactualizado
+    const clean=(scanRef.current?.value||"").trim();
     if(!clean)return;
-    const book=libros.find(l=>l.isbn&&l.isbn.trim()===clean);
+    const book=libros.find(l=>l.isbn&&String(l.isbn).trim()===clean);
     if(book){setFound(book);setNotFound(false);setAction(null);setQty("1");}
     else{setFound(null);setNotFound(true);}
-    isbnRef.current="";
-    setIsbn("");
-    setTimeout(()=>inputRef.current?.focus(),50);
+    setDisplay("");
+    if(scanRef.current){scanRef.current.value="";scanRef.current.focus();}
   }
 
   function doEntrada(){
     const q=parseInt(qty);if(!q||q<=0)return;
-    onSaveLibros(libros.map(l=>l.id===found.id?{...l,si:l.si+q}:l));
-    setMsg(`✓ Entrada: +${q} ejs. de "${trunc(found.titulo,35)}"`);reset();
+    const bod=bodegaEntrada||(bodegas&&bodegas[0])||"";
+    onSaveLibros(libros.map(l=>{
+      if(l.id!==found.id)return l;
+      const newBod=bod?{...l.bodegas,[bod]:(l.bodegas?.[bod]||0)+q}:l.bodegas;
+      return{...l,si:l.si+q,bodegas:newBod};
+    }));
+    setMsg(`✓ Entrada: +${q} ejs.${bod?` → ${bod}`:""} de "${trunc(found.titulo,35)}"`);reset();
   }
 
   function doVenta(){
     const q=parseInt(qty);if(!q||q<=0)return;
     const s=calcStock(found.id,regalos,consignaciones,libros);
     if(q>s.disp){setMsg(`⚠ Stock insuficiente. Disponible: ${s.disp} ejs.`);return;}
-    // Venta directa: se descuenta del stock inicial
     onSaveLibros(libros.map(l=>l.id===found.id?{...l,si:Math.max(0,l.si-q)}:l));
     setMsg(`✓ Venta: -${q} ejs. de "${trunc(found.titulo,35)}"`);reset();
   }
@@ -668,25 +734,19 @@ function Scanner({libros,regalos,consignaciones,onSaveRegalos,onSaveLibros,onSav
 
   const s=found?calcStock(found.id,regalos,consignaciones,libros):null;
 
-  const ACCIONES=[
-    {k:"entrada",label:"📥 Entrada de stock",v:"green"},
-    {k:"venta",label:"💰 Salida por venta",v:"primary"},
-    {k:"consignacion",label:"📦 Consignación",v:"blue"},
-    {k:"regalo",label:"🎁 Regalo / Donación",v:"secondary"},
-  ];
-
   return<div>
     <h2 style={{color:N,fontSize:17,fontFamily:"Libre Baskerville,serif",marginBottom:6}}>Escáner de código de barras</h2>
-    <p style={{color:MU,fontSize:13,marginBottom:20,lineHeight:1.6}}>Conecta tu lector USB, haz clic en el campo de abajo y escanea cualquier libro. El lector tipea el ISBN automáticamente y presiona Enter.</p>
+    <p style={{color:MU,fontSize:13,marginBottom:20,lineHeight:1.6}}>Conecta tu lector USB, haz clic en el campo de abajo y escanea cualquier libro.</p>
     <div style={{background:W,borderRadius:10,padding:24,marginBottom:20,boxShadow:"0 1px 6px rgba(0,0,0,.07)",border:`2px solid ${G}`}}>
       <div style={{display:"flex",gap:12,alignItems:"center"}}>
         <div style={{fontSize:32}}>📷</div>
         <div style={{flex:1}}>
           <LBL ch="Escanea o escribe un ISBN"/>
           <div style={{display:"flex",gap:10}}>
-            <input ref={inputRef} value={isbn}
-              onChange={e=>{isbnRef.current=e.target.value;setIsbn(e.target.value);}}
-              onKeyDown={e=>{if(e.key==="Enter")handleScan();}}
+            <input
+              ref={scanRef}
+              onChange={e=>setDisplay(e.target.value)}
+              onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();handleScan();}}}
               placeholder="Apunta el lector al código de barras…"
               autoFocus
               style={{flex:1,fontSize:15,padding:"10px 14px",border:`2px solid ${G}`,background:"#FFFBF0",borderRadius:6,outline:"none",fontFamily:"DM Sans,sans-serif",color:N}}/>
@@ -705,45 +765,44 @@ function Scanner({libros,regalos,consignaciones,onSaveRegalos,onSaveLibros,onSav
           <div style={{color:W,fontSize:14,fontFamily:"Libre Baskerville,serif",fontWeight:700}}>{trunc(found.titulo,70)}</div>
           <div style={{color:"rgba(255,255,255,.6)",fontSize:12,marginTop:3}}>{found.autor}</div>
         </div>
-        <button onClick={()=>{setFound(null);setAction(null);setMsg("");}} style={{background:"rgba(255,255,255,.15)",border:"none",cursor:"pointer",color:W,fontSize:16,width:28,height:28,borderRadius:6,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>✕</button>
+        <button onClick={reset} style={{background:"rgba(255,255,255,.15)",border:"none",cursor:"pointer",color:W,fontSize:16,width:28,height:28,borderRadius:6,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>✕</button>
       </div>
-      {/* Stock mini */}
       <div style={{padding:"12px 20px",background:"#EFF6FF",display:"flex",gap:20,fontSize:13,borderBottom:"1px solid #BFDBFE",flexWrap:"wrap"}}>
         {[["Stock inicial",found.si,N],["Disponible",s.disp,s.disp<=0?RD:s.disp<20?"#D97706":GR],["Regalados",s.regalados,G],["En consig.",s.enConsig,"#2563EB"]].map(([lbl,val,col])=>
           <div key={lbl} style={{textAlign:"center",minWidth:70}}><div style={{fontSize:20,fontWeight:700,color:col,fontFamily:"Libre Baskerville,serif"}}>{val}</div><div style={{fontSize:10,color:MU}}>{lbl}</div></div>
         )}
       </div>
       <div style={{padding:"16px 20px"}}>
-        {/* Selector de acción */}
         {!action&&<div>
           <div style={{fontSize:12,color:MU,marginBottom:12,fontWeight:600,textTransform:"uppercase",letterSpacing:".5px"}}>¿Qué quieres registrar?</div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-            {ACCIONES.map(a=><Btn key={a.k} v={a.v} onClick={()=>setAction(a.k)} style={{justifyContent:"center"}}>{a.label}</Btn>)}
+            <Btn v="green" onClick={()=>setAction("entrada")}>📥 Entrada de stock</Btn>
+            <Btn v="primary" onClick={()=>setAction("venta")}>💰 Salida por venta</Btn>
+            <Btn v="blue" onClick={()=>setAction("consignacion")}>📦 Consignación</Btn>
+            <Btn v="secondary" onClick={()=>setAction("regalo")}>🎁 Regalo / Donación</Btn>
           </div>
         </div>}
-
-        {/* Entrada */}
         {action==="entrada"&&<div>
           <div style={{fontSize:13,fontWeight:600,color:GR,marginBottom:12}}>📥 Entrada de stock — se suma al stock inicial</div>
-          <div style={{display:"flex",gap:10,alignItems:"flex-end"}}>
-            <div><LBL ch="Cantidad a agregar"/><Inp type="number" value={qty} onChange={setQty} min="1" autoFocus={true} style={{width:130}}/></div>
+          <div style={{display:"flex",gap:10,alignItems:"flex-end",flexWrap:"wrap"}}>
+            <div><LBL ch="Cantidad a agregar"/><Inp type="number" value={qty} onChange={setQty} min="1" autoFocus={true} style={{width:120}}/></div>
+            {bodegas&&bodegas.length>0&&<div><LBL ch="Bodega de destino"/>
+              <Sel value={bodegaEntrada||(bodegas[0]||"")} onChange={setBodegaEntrada}
+                options={bodegas.map(b=>({v:b,l:b}))} style={{minWidth:160}}/>
+            </div>}
             <Btn v="green" onClick={doEntrada}>Confirmar entrada</Btn>
             <Btn v="ghost" onClick={()=>setAction(null)}>Cancelar</Btn>
           </div>
         </div>}
-
-        {/* Venta */}
         {action==="venta"&&<div>
-          <div style={{fontSize:13,fontWeight:600,color:N,marginBottom:12}}>💰 Salida por venta directa — se descuenta del stock disponible</div>
+          <div style={{fontSize:13,fontWeight:600,color:N,marginBottom:12}}>💰 Salida por venta directa</div>
           <div style={{display:"flex",gap:10,alignItems:"flex-end"}}>
             <div><LBL ch="Cantidad vendida"/><Inp type="number" value={qty} onChange={setQty} min="1" autoFocus={true} style={{width:130}}/></div>
             <Btn onClick={doVenta}>Confirmar venta</Btn>
             <Btn v="ghost" onClick={()=>setAction(null)}>Cancelar</Btn>
           </div>
-          <div style={{marginTop:8,fontSize:11,color:MU}}>Stock disponible actual: <strong style={{color:s.disp<=0?RD:GR}}>{s.disp} ejs.</strong></div>
+          <div style={{marginTop:8,fontSize:11,color:MU}}>Disponible: <strong style={{color:s.disp<=0?RD:GR}}>{s.disp} ejs.</strong></div>
         </div>}
-
-        {/* Consignación */}
         {action==="consignacion"&&<div>
           <div style={{fontSize:13,fontWeight:600,color:"#2563EB",marginBottom:12}}>📦 Nueva consignación</div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,alignItems:"flex-end"}}>
@@ -755,10 +814,7 @@ function Scanner({libros,regalos,consignaciones,onSaveRegalos,onSaveLibros,onSav
             <Btn v="blue" onClick={doConsignacion}>Confirmar consignación</Btn>
             <Btn v="ghost" onClick={()=>setAction(null)}>Cancelar</Btn>
           </div>
-          <div style={{marginTop:8,fontSize:11,color:MU}}>Stock disponible actual: <strong style={{color:s.disp<=0?RD:GR}}>{s.disp} ejs.</strong></div>
         </div>}
-
-        {/* Regalo */}
         {action==="regalo"&&<div>
           <div style={{fontSize:13,fontWeight:600,color:G,marginBottom:12}}>🎁 Registrar regalo / donación</div>
           <div style={{display:"grid",gridTemplateColumns:"auto auto 1fr",gap:10,alignItems:"flex-end"}}>
@@ -921,6 +977,7 @@ function App(){
   const[libros,setLibros]=useState(()=>stGet("uss_libros")||SEED);
   const[regalos,setRegalos]=useState(()=>stGet("uss_regalos")||[]);
   const[consignaciones,setCons]=useState(()=>stGet("uss_consignaciones")||[]);
+  const[bodegas,setBodegas]=useState(()=>stGet("uss_bodegas")||BOD_NAMES);
   const[tab,setTab]=useState("dashboard");
 
   useEffect(()=>{if(!scriptUrl){setState("unconfigured");return;}bootLoad();},[scriptUrl]);
@@ -968,6 +1025,7 @@ function App(){
   const saveLibros=useCallback(d=>{setLibros(d);stSet("uss_libros",d);syncSheet("Libros",[LIBRO_HDR,...d.map(libroToRow)]);},[syncSheet]);
   const saveRegalos=useCallback(d=>{setRegalos(d);stSet("uss_regalos",d);syncSheet("Regalos",[REG_HDR,...d.map(r=>[r.id,r.libroId,r.cantidad,r.fecha,r.stakeholder,r.nota||""])]);},[syncSheet]);
   const saveCons=useCallback(d=>{setCons(d);stSet("uss_consignaciones",d);syncSheet("Consignaciones",[CONS_HDR,...d.map(c=>[c.id,c.libroId,c.distribuidor,c.cantEnv,c.cantVend||0,c.cantDev||0,c.fechaEnv,c.notas||"",c.estado])]);},[syncSheet]);
+  const saveBodegas=useCallback(d=>{setBodegas(d);stSet("uss_bodegas",d);},[]);
 
   if(state==="unconfigured")return<SetupScreen onSave={url=>{setScriptUrl(url);stSet("uss_gs_url",url);}}/>;
 
@@ -1004,8 +1062,8 @@ function App(){
     </div>
     <div style={{padding:"22px 28px",maxWidth:1500,margin:"0 auto"}}>
       {tab==="dashboard"      &&<Dashboard libros={libros} regalos={regalos} consignaciones={consignaciones}/>}
-      {tab==="catalogo"       &&<Catalogo libros={libros} regalos={regalos} consignaciones={consignaciones} onSaveLibros={saveLibros} onSaveRegalos={saveRegalos} onSaveConsignaciones={saveCons}/>}
-      {tab==="scanner"        &&<Scanner libros={libros} regalos={regalos} consignaciones={consignaciones} onSaveRegalos={saveRegalos} onSaveLibros={saveLibros} onSaveConsignaciones={saveCons}/>}
+      {tab==="catalogo"       &&<Catalogo libros={libros} regalos={regalos} consignaciones={consignaciones} onSaveLibros={saveLibros} onSaveRegalos={saveRegalos} onSaveConsignaciones={saveCons} bodegas={bodegas} onSaveBodegas={saveBodegas}/>}
+      {tab==="scanner"        &&<Scanner libros={libros} regalos={regalos} consignaciones={consignaciones} onSaveRegalos={saveRegalos} onSaveLibros={saveLibros} onSaveConsignaciones={saveCons} bodegas={bodegas}/>}
       {tab==="regalos"        &&<Regalos libros={libros} regalos={regalos} onSave={saveRegalos} consignaciones={consignaciones}/>}
       {tab==="consignaciones" &&<Consignaciones libros={libros} consignaciones={consignaciones} onSave={saveCons} regalos={regalos}/>}
     </div>
