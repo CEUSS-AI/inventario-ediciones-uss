@@ -608,17 +608,20 @@ function Catalogo({libros,regalos,consignaciones,onSaveLibros,onSaveRegalos,onSa
 }
 
 /* ── ESCÁNER ── */
-function Scanner({libros,regalos,consignaciones,onSaveRegalos,onSaveLibros}){
+function Scanner({libros,regalos,consignaciones,onSaveRegalos,onSaveLibros,onSaveConsignaciones}){
   const[isbn,setIsbn]=useState("");
   const[found,setFound]=useState(null);
   const[notFound,setNotFound]=useState(false);
   const[action,setAction]=useState(null);
   const[qty,setQty]=useState("1");
   const[stakeholder,setStakeholder]=useState("");
+  const[distribuidor,setDistribuidor]=useState("");
   const[fecha,setFecha]=useState(new Date().toISOString().slice(0,10));
   const[msg,setMsg]=useState("");
   const inputRef=useRef(null);
   useEffect(()=>{inputRef.current?.focus();},[]);
+
+  function reset(){setFound(null);setAction(null);setQty("1");setStakeholder("");setDistribuidor("");setTimeout(()=>inputRef.current?.focus(),80);}
 
   function handleScan(val){
     const clean=val.trim();if(!clean)return;
@@ -632,9 +635,16 @@ function Scanner({libros,regalos,consignaciones,onSaveRegalos,onSaveLibros}){
   function doEntrada(){
     const q=parseInt(qty);if(!q||q<=0)return;
     onSaveLibros(libros.map(l=>l.id===found.id?{...l,si:l.si+q}:l));
-    setMsg(`✓ Entrada: +${q} ejs. de "${trunc(found.titulo,35)}"`);
-    setFound(null);setAction(null);
-    setTimeout(()=>inputRef.current?.focus(),100);
+    setMsg(`✓ Entrada: +${q} ejs. de "${trunc(found.titulo,35)}"`);reset();
+  }
+
+  function doVenta(){
+    const q=parseInt(qty);if(!q||q<=0)return;
+    const s=calcStock(found.id,regalos,consignaciones,libros);
+    if(q>s.disp){setMsg(`⚠ Stock insuficiente. Disponible: ${s.disp} ejs.`);return;}
+    // Venta directa: se descuenta del stock inicial
+    onSaveLibros(libros.map(l=>l.id===found.id?{...l,si:Math.max(0,l.si-q)}:l));
+    setMsg(`✓ Venta: -${q} ejs. de "${trunc(found.titulo,35)}"`);reset();
   }
 
   function doRegalo(){
@@ -642,12 +652,25 @@ function Scanner({libros,regalos,consignaciones,onSaveRegalos,onSaveLibros}){
     const s=calcStock(found.id,regalos,consignaciones,libros);
     if(q>s.disp){setMsg(`⚠ Stock insuficiente. Disponible: ${s.disp} ejs.`);return;}
     onSaveRegalos([...regalos,{id:uid(),libroId:found.id,cantidad:q,fecha,stakeholder:stakeholder.trim(),nota:"Escáner"}]);
-    setMsg(`✓ Regalo: ${q} ejs. → ${stakeholder}`);
-    setFound(null);setAction(null);setStakeholder("");
-    setTimeout(()=>inputRef.current?.focus(),100);
+    setMsg(`✓ Regalo: ${q} ejs. → ${stakeholder}`);reset();
+  }
+
+  function doConsignacion(){
+    const q=parseInt(qty);if(!q||q<=0||!distribuidor.trim())return;
+    const s=calcStock(found.id,regalos,consignaciones,libros);
+    if(q>s.disp){setMsg(`⚠ Stock insuficiente. Disponible: ${s.disp} ejs.`);return;}
+    onSaveConsignaciones([...consignaciones,{id:uid(),libroId:found.id,distribuidor:distribuidor.trim(),cantEnv:q,cantVend:0,cantDev:0,fechaEnv:fecha,notas:"Escáner",estado:"activa"}]);
+    setMsg(`✓ Consignación: ${q} ejs. → ${distribuidor}`);reset();
   }
 
   const s=found?calcStock(found.id,regalos,consignaciones,libros):null;
+
+  const ACCIONES=[
+    {k:"entrada",label:"📥 Entrada de stock",v:"green"},
+    {k:"venta",label:"💰 Salida por venta",v:"primary"},
+    {k:"consignacion",label:"📦 Consignación",v:"blue"},
+    {k:"regalo",label:"🎁 Regalo / Donación",v:"secondary"},
+  ];
 
   return<div>
     <h2 style={{color:N,fontSize:17,fontFamily:"Libre Baskerville,serif",marginBottom:6}}>Escáner de código de barras</h2>
@@ -678,26 +701,58 @@ function Scanner({libros,regalos,consignaciones,onSaveRegalos,onSaveLibros}){
         </div>
         <button onClick={()=>{setFound(null);setAction(null);setMsg("");}} style={{background:"rgba(255,255,255,.15)",border:"none",cursor:"pointer",color:W,fontSize:16,width:28,height:28,borderRadius:6,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>✕</button>
       </div>
+      {/* Stock mini */}
       <div style={{padding:"12px 20px",background:"#EFF6FF",display:"flex",gap:20,fontSize:13,borderBottom:"1px solid #BFDBFE",flexWrap:"wrap"}}>
         {[["Stock inicial",found.si,N],["Disponible",s.disp,s.disp<=0?RD:s.disp<20?"#D97706":GR],["Regalados",s.regalados,G],["En consig.",s.enConsig,"#2563EB"]].map(([lbl,val,col])=>
           <div key={lbl} style={{textAlign:"center",minWidth:70}}><div style={{fontSize:20,fontWeight:700,color:col,fontFamily:"Libre Baskerville,serif"}}>{val}</div><div style={{fontSize:10,color:MU}}>{lbl}</div></div>
         )}
       </div>
       <div style={{padding:"16px 20px"}}>
-        {!action&&<div><div style={{fontSize:12,color:MU,marginBottom:12,fontWeight:600}}>¿QUÉ QUIERES REGISTRAR?</div>
-          <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
-            <Btn v="green" onClick={()=>setAction("entrada")}>📥 Entrada de stock</Btn>
-            <Btn v="secondary" onClick={()=>setAction("regalo")}>🎁 Registrar regalo</Btn>
+        {/* Selector de acción */}
+        {!action&&<div>
+          <div style={{fontSize:12,color:MU,marginBottom:12,fontWeight:600,textTransform:"uppercase",letterSpacing:".5px"}}>¿Qué quieres registrar?</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            {ACCIONES.map(a=><Btn key={a.k} v={a.v} onClick={()=>setAction(a.k)} style={{justifyContent:"center"}}>{a.label}</Btn>)}
           </div>
         </div>}
+
+        {/* Entrada */}
         {action==="entrada"&&<div>
           <div style={{fontSize:13,fontWeight:600,color:GR,marginBottom:12}}>📥 Entrada de stock — se suma al stock inicial</div>
           <div style={{display:"flex",gap:10,alignItems:"flex-end"}}>
-            <div><LBL ch="Cantidad a agregar"/><Inp type="number" value={qty} onChange={setQty} min="1" autoFocus={true} style={{width:120}}/></div>
+            <div><LBL ch="Cantidad a agregar"/><Inp type="number" value={qty} onChange={setQty} min="1" autoFocus={true} style={{width:130}}/></div>
             <Btn v="green" onClick={doEntrada}>Confirmar entrada</Btn>
             <Btn v="ghost" onClick={()=>setAction(null)}>Cancelar</Btn>
           </div>
         </div>}
+
+        {/* Venta */}
+        {action==="venta"&&<div>
+          <div style={{fontSize:13,fontWeight:600,color:N,marginBottom:12}}>💰 Salida por venta directa — se descuenta del stock disponible</div>
+          <div style={{display:"flex",gap:10,alignItems:"flex-end"}}>
+            <div><LBL ch="Cantidad vendida"/><Inp type="number" value={qty} onChange={setQty} min="1" autoFocus={true} style={{width:130}}/></div>
+            <Btn onClick={doVenta}>Confirmar venta</Btn>
+            <Btn v="ghost" onClick={()=>setAction(null)}>Cancelar</Btn>
+          </div>
+          <div style={{marginTop:8,fontSize:11,color:MU}}>Stock disponible actual: <strong style={{color:s.disp<=0?RD:GR}}>{s.disp} ejs.</strong></div>
+        </div>}
+
+        {/* Consignación */}
+        {action==="consignacion"&&<div>
+          <div style={{fontSize:13,fontWeight:600,color:"#2563EB",marginBottom:12}}>📦 Nueva consignación</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,alignItems:"flex-end"}}>
+            <div><LBL ch="Cantidad enviada"/><Inp type="number" value={qty} onChange={setQty} min="1" autoFocus={true} style={{width:"100%"}}/></div>
+            <div><LBL ch="Fecha envío"/><Inp type="date" value={fecha} onChange={setFecha} style={{width:"100%"}}/></div>
+            <div><LBL ch="Distribuidora *"/><Inp value={distribuidor} onChange={setDistribuidor} placeholder="Ej: Librería Antártica…" style={{width:"100%"}}/></div>
+          </div>
+          <div style={{marginTop:10,display:"flex",gap:10}}>
+            <Btn v="blue" onClick={doConsignacion}>Confirmar consignación</Btn>
+            <Btn v="ghost" onClick={()=>setAction(null)}>Cancelar</Btn>
+          </div>
+          <div style={{marginTop:8,fontSize:11,color:MU}}>Stock disponible actual: <strong style={{color:s.disp<=0?RD:GR}}>{s.disp} ejs.</strong></div>
+        </div>}
+
+        {/* Regalo */}
         {action==="regalo"&&<div>
           <div style={{fontSize:13,fontWeight:600,color:G,marginBottom:12}}>🎁 Registrar regalo / donación</div>
           <div style={{display:"grid",gridTemplateColumns:"auto auto 1fr",gap:10,alignItems:"flex-end"}}>
@@ -705,7 +760,10 @@ function Scanner({libros,regalos,consignaciones,onSaveRegalos,onSaveLibros}){
             <div><LBL ch="Fecha"/><Inp type="date" value={fecha} onChange={setFecha} style={{width:140}}/></div>
             <div><LBL ch="Stakeholder *"/><Inp value={stakeholder} onChange={setStakeholder} placeholder="Nombre del destinatario…" style={{width:"100%"}}/></div>
           </div>
-          <div style={{marginTop:10,display:"flex",gap:10}}><Btn v="secondary" onClick={doRegalo}>Confirmar regalo</Btn><Btn v="ghost" onClick={()=>setAction(null)}>Cancelar</Btn></div>
+          <div style={{marginTop:10,display:"flex",gap:10}}>
+            <Btn v="secondary" onClick={doRegalo}>Confirmar regalo</Btn>
+            <Btn v="ghost" onClick={()=>setAction(null)}>Cancelar</Btn>
+          </div>
         </div>}
       </div>
     </div>}
@@ -941,7 +999,7 @@ function App(){
     <div style={{padding:"22px 28px",maxWidth:1500,margin:"0 auto"}}>
       {tab==="dashboard"      &&<Dashboard libros={libros} regalos={regalos} consignaciones={consignaciones}/>}
       {tab==="catalogo"       &&<Catalogo libros={libros} regalos={regalos} consignaciones={consignaciones} onSaveLibros={saveLibros} onSaveRegalos={saveRegalos} onSaveConsignaciones={saveCons}/>}
-      {tab==="scanner"        &&<Scanner libros={libros} regalos={regalos} consignaciones={consignaciones} onSaveRegalos={saveRegalos} onSaveLibros={saveLibros}/>}
+      {tab==="scanner"        &&<Scanner libros={libros} regalos={regalos} consignaciones={consignaciones} onSaveRegalos={saveRegalos} onSaveLibros={saveLibros} onSaveConsignaciones={saveCons}/>}
       {tab==="regalos"        &&<Regalos libros={libros} regalos={regalos} onSave={saveRegalos} consignaciones={consignaciones}/>}
       {tab==="consignaciones" &&<Consignaciones libros={libros} consignaciones={consignaciones} onSave={saveCons} regalos={regalos}/>}
     </div>
