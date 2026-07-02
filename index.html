@@ -9,8 +9,6 @@
 <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-<script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#F7F4EE;font-family:'DM Sans',sans-serif}
@@ -22,10 +20,11 @@ input[type=number]::-webkit-inner-spin-button{opacity:1}
 .rsel{background:#F0E4C4!important}
 .pin{animation:slideDown .18s ease}
 @keyframes slideDown{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
-a{color:#102B42}code{background:#F3F4F6;padding:1px 5px;border-radius:3px;font-family:monospace;font-size:12px}
+a{color:#102B42}
+code{background:#F3F4F6;padding:2px 6px;border-radius:3px;font-family:monospace;font-size:12px}
+pre{background:#1E293B;color:#E2E8F0;padding:14px;border-radius:8px;font-size:12px;overflow-x:auto;line-height:1.6;margin:8px 0}
 ol li{margin-bottom:6px}
 @keyframes progress{0%{width:0;margin-left:0}50%{width:60%;margin-left:20%}100%{width:0;margin-left:100%}}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 </style>
 </head>
 <body>
@@ -121,9 +120,8 @@ const BLANK_BOD=()=>Object.fromEntries(BOD_NAMES.map(k=>[k,0]));
 const LIBRO_HDR=["id","titulo","autor","isbn","pN","pU","ano","si","me","cat","b_bes2","b_bes5","b_bes8","b_condor5","b_st20712","b_st20713"];
 const REG_HDR=["id","libroId","cantidad","fecha","stakeholder","nota"];
 const CONS_HDR=["id","libroId","distribuidor","cantEnv","cantVend","cantDev","fechaEnv","notas","estado"];
-const DEFAULT_PATH="CEUSS/Inventario-USS.xlsx";
 
-/* ── SEED ── */
+/* ── SEED (77 títulos) ── */
 const SEED=[
   {id:"L001",titulo:"Antonio Varas. El ministro y el proyecto político Monttvarista (1817-1886)",autor:"Gonzalo Arenas Hödar",isbn:"9789566115786",pN:24500,pU:20000,ano:2024,si:191,me:0,cat:"Historia y Política"},
   {id:"L002",titulo:"La nueva historia diplomática. Hitos chilenos de los siglos XIX-XX",autor:"Cristián Medina Valverde (compilador)",isbn:"9789566115762",pN:16000,pU:12800,ano:2024,si:85,me:0,cat:"Historia y Política"},
@@ -212,51 +210,31 @@ const trunc=(s,n)=>s&&s.length>n?s.slice(0,n)+"…":(s||"");
 const toNum=v=>v===""||v===null||v===undefined?null:Number(v)||null;
 const colLetter=n=>{let s="";while(n>0){n--;s=String.fromCharCode(65+(n%26))+s;n=Math.floor(n/26);}return s;};
 
-/* ── Storage ── */
+/* ── LocalStorage ── */
 function stGet(k){try{const r=localStorage.getItem(k);return r?JSON.parse(r):null;}catch{return null;}}
 function stSet(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch{}}
 
-/* ── MSAL / Auth ── */
-const SCOPES=["Files.ReadWrite","User.Read"];
-let msalInst=null;
-function buildMsal(clientId){
-  msalInst=new msal.PublicClientApplication({
-    auth:{clientId,authority:"https://login.microsoftonline.com/common",redirectUri:window.location.origin+window.location.pathname,navigateToLoginRequestUrl:false},
-    cache:{cacheLocation:"localStorage",storeAuthStateInCookie:false},
-  });
-}
-async function msalLogin(){const r=await msalInst.loginPopup({scopes:SCOPES,prompt:"select_account"});return r.account;}
-async function getToken(){
-  const accounts=msalInst.getAllAccounts();if(!accounts.length)throw new Error("No hay sesión activa.");
-  try{const r=await msalInst.acquireTokenSilent({scopes:SCOPES,account:accounts[0]});return r.accessToken;}
-  catch{const r=await msalInst.acquireTokenPopup({scopes:SCOPES,account:accounts[0]});return r.accessToken;}
-}
-
-/* ── Graph / Excel ── */
-const GRAPH="https://graph.microsoft.com/v1.0";
-async function gFetch(token,method,path,body){
-  const res=await fetch(`${GRAPH}${path}`,{method,headers:{"Authorization":`Bearer ${token}`,"Content-Type":"application/json"},body:body!==undefined?JSON.stringify(body):undefined});
-  if(res.status===204||res.status===202)return null;
-  if(!res.ok){let e;try{e=await res.json();}catch{e={error:{message:res.statusText}};}throw new Error(e.error?.message||`Error ${res.status}`);}
+/* ── Google Sheets API via Apps Script ── */
+async function gsRead(url){
+  const res=await fetch(`${url}?t=${Date.now()}`);
   return res.json();
 }
-async function checkFileExists(token,fp){try{await gFetch(token,"GET",`/me/drive/root:/${fp}`);return true;}catch{return false;}}
-function libroToRow(l){return[l.id,l.titulo||"",l.autor||"",l.isbn||"",l.pN??"",l.pU??"",l.ano??"",l.si??0,l.me??0,l.cat||"",l.bodegas?.["BES/-2"]??0,l.bodegas?.["BES/5"]??0,l.bodegas?.["BES/8"]??0,l.bodegas?.["El Cóndor 5"]??0,l.bodegas?.["ST 207/12"]??0,l.bodegas?.["ST 207/13"]??0];}
 
-async function createExcelOnOneDrive(token,fp){
-  const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([LIBRO_HDR,...SEED.map(libroToRow)]),"Libros");
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([REG_HDR]),"Regalos");
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([CONS_HDR]),"Consignaciones");
-  const arr=XLSX.write(wb,{bookType:"xlsx",type:"array"});
-  await fetch(`${GRAPH}/me/drive/root:/${fp}:/content`,{method:"PUT",headers:{"Authorization":`Bearer ${token}`,"Content-Type":"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"},body:new Blob([arr],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"})});
+async function gsWrite(url,sheet,values){
+  // mode no-cors: browser can't read response but the write happens on server
+  await fetch(url,{
+    method:"POST",
+    mode:"no-cors",
+    headers:{"Content-Type":"text/plain;charset=utf-8"},
+    body:JSON.stringify({sheet,values})
+  });
 }
-async function readSheet(token,fp,sh){try{const d=await gFetch(token,"GET",`/me/drive/root:/${fp}:/workbook/worksheets('${encodeURIComponent(sh)}')/usedRange`);return d?.values||[];}catch{return[];}}
-async function writeSheet(token,fp,sh,values){
-  if(!values||values.length===0)return;
-  try{await gFetch(token,"POST",`/me/drive/root:/${fp}:/workbook/worksheets('${encodeURIComponent(sh)}')/usedRange/clear`,{applyTo:"Contents"});}catch{}
-  const r=`A1:${colLetter(values[0].length)}${values.length}`;
-  await gFetch(token,"PATCH",`/me/drive/root:/${fp}:/workbook/worksheets('${encodeURIComponent(sh)}')/range(address='${r}')`,{values});
+
+/* ── Data conversion ── */
+function libroToRow(l){
+  return[l.id,l.titulo||"",l.autor||"",l.isbn||"",l.pN??"",l.pU??"",l.ano??"",l.si??0,l.me??0,l.cat||"",
+    l.bodegas?.["BES/-2"]??0,l.bodegas?.["BES/5"]??0,l.bodegas?.["BES/8"]??0,
+    l.bodegas?.["El Cóndor 5"]??0,l.bodegas?.["ST 207/12"]??0,l.bodegas?.["ST 207/13"]??0];
 }
 function rowsToObjects(rows){
   if(!rows||rows.length<2)return[];
@@ -266,14 +244,9 @@ function rowsToObjects(rows){
     const obj={};
     hdrs.forEach((h,i)=>{const v=row[i];obj[h]=(v===null||v==="")?(["pN","pU","ano"].includes(h)?null:v):v;});
     NUM.forEach(k=>{if(obj[k]!=null&&obj[k]!=="")obj[k]=Number(obj[k])||0;});
-    // Reconstruct bodegas object
     obj.bodegas={"BES/-2":obj.b_bes2||0,"BES/5":obj.b_bes5||0,"BES/8":obj.b_bes8||0,"El Cóndor 5":obj.b_condor5||0,"ST 207/12":obj.b_st20712||0,"ST 207/13":obj.b_st20713||0};
     return obj;
   });
-}
-async function loadFromOneDrive(token,fp){
-  const[lr,rr,cr]=await Promise.all([readSheet(token,fp,"Libros"),readSheet(token,fp,"Regalos"),readSheet(token,fp,"Consignaciones")]);
-  return{libros:rowsToObjects(lr),regalos:rowsToObjects(rr),consignaciones:rowsToObjects(cr)};
 }
 
 /* ── Stock ── */
@@ -286,7 +259,7 @@ function calcStock(libroId,regalos,consignaciones,libros){
 
 /* ── UI Primitives ── */
 function Btn({children,onClick,v="primary",sm,disabled,style={}}){
-  const m={primary:{bg:N,cl:W,br:N},secondary:{bg:G,cl:N,br:G},ghost:{bg:"transparent",cl:N,br:"#D1D5DB"},danger:{bg:RD,cl:W,br:RD},blue:{bg:"#2563EB",cl:W,br:"#2563EB"},green:{bg:GR,cl:W,br:GR},orange:{bg:OR,cl:W,br:OR}};
+  const m={primary:{bg:N,cl:W,br:N},secondary:{bg:G,cl:N,br:G},ghost:{bg:"transparent",cl:N,br:"#D1D5DB"},danger:{bg:RD,cl:W,br:RD},blue:{bg:"#2563EB",cl:W,br:"#2563EB"},green:{bg:GR,cl:W,br:GR}};
   const{bg,cl,br}=m[v]||m.primary;
   return<button onClick={onClick} disabled={disabled} style={{padding:sm?"5px 10px":"8px 18px",background:disabled?"#E5E7EB":bg,color:disabled?"#9CA3AF":cl,border:`1px solid ${disabled?"#E5E7EB":br}`,borderRadius:6,cursor:disabled?"not-allowed":"pointer",fontWeight:600,fontSize:sm?12:13,fontFamily:"DM Sans,sans-serif",lineHeight:1.4,...style}}>{children}</button>;
 }
@@ -306,53 +279,104 @@ function KPI({label,value,accent=N}){return<div style={{background:W,borderRadiu
 function SH({title,action}){return<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 14px",background:"#F1EDE4",borderRadius:6,marginBottom:12,borderLeft:`3px solid ${G}`}}><span style={{fontWeight:700,fontSize:13,color:N}}>{title}</span>{action}</div>;}
 function LBL({ch}){return<label style={{fontSize:11,fontWeight:600,color:N,display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:".5px"}}>{ch}</label>;}
 
-/* ── BODEGAS SECTION (editable) ── */
+/* ── Bodegas Section ── */
 function BodegasSection({bodegas,onChange}){
   const total=BOD_NAMES.reduce((s,k)=>s+(bodegas[k]||0),0);
   return<div>
     <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:8}}>
-      {BOD_NAMES.map(k=>{
-        const v=bodegas[k]||0;
-        return<div key={k} style={{background:v>0?"#EFF6FF":"#F9FAFB",border:`1px solid ${v>0?"#BFDBFE":"#E5E7EB"}`,borderRadius:8,padding:"10px 12px"}}>
-          <div style={{fontSize:10,fontWeight:700,color:MU,textTransform:"uppercase",letterSpacing:".5px",marginBottom:6}}>{k}</div>
-          {onChange
-            ?<Inp type="number" value={v} onChange={val=>onChange({...bodegas,[k]:parseInt(val)||0})} min="0" style={{width:"100%",padding:"4px 8px",fontSize:14,fontWeight:700,color:v>0?"#2563EB":MU}}/>
-            :<div style={{fontSize:20,fontWeight:700,color:v>0?"#2563EB":MU,fontFamily:"Libre Baskerville,serif"}}>{v}</div>
-          }
-        </div>;
-      })}
+      {BOD_NAMES.map(k=>{const v=bodegas[k]||0;return<div key={k} style={{background:v>0?"#EFF6FF":"#F9FAFB",border:`1px solid ${v>0?"#BFDBFE":"#E5E7EB"}`,borderRadius:8,padding:"10px 12px"}}>
+        <div style={{fontSize:10,fontWeight:700,color:MU,textTransform:"uppercase",letterSpacing:".5px",marginBottom:6}}>{k}</div>
+        {onChange?<Inp type="number" value={v} onChange={val=>onChange({...bodegas,[k]:parseInt(val)||0})} min="0" style={{width:"100%",padding:"4px 8px",fontSize:14,fontWeight:700,color:v>0?"#2563EB":MU}}/>
+          :<div style={{fontSize:20,fontWeight:700,color:v>0?"#2563EB":MU,fontFamily:"Libre Baskerville,serif"}}>{v}</div>}
+      </div>;})}
     </div>
     <div style={{fontSize:11,color:MU,textAlign:"right"}}>Total en bodegas: <strong style={{color:N}}>{total}</strong></div>
   </div>;
 }
 
 /* ── SETUP SCREEN ── */
+const GS_CODE=`function doGet(e) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const out = {};
+    ['Libros','Regalos','Consignaciones'].forEach(n => {
+      const sh = ss.getSheetByName(n);
+      out[n] = (sh && sh.getLastRow()>0) ? sh.getDataRange().getValues() : [];
+    });
+    return ContentService
+      .createTextOutput(JSON.stringify(out))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch(err) {
+    return ContentService
+      .createTextOutput(JSON.stringify({error:err.toString()}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function doPost(e) {
+  try {
+    const {sheet, values} = JSON.parse(e.postData.contents);
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let sh = ss.getSheetByName(sheet);
+    if (!sh) sh = ss.insertSheet(sheet);
+    sh.clearContents();
+    if (values && values.length > 0)
+      sh.getRange(1,1,values.length,values[0].length).setValues(values);
+    return ContentService
+      .createTextOutput(JSON.stringify({ok:true}))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch(err) {
+    return ContentService
+      .createTextOutput(JSON.stringify({error:err.toString()}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}`;
+
 function SetupScreen({onSave}){
-  const[clientId,setClientId]=useState("");
-  const[filePath,setFilePath]=useState(DEFAULT_PATH);
-  const currentUrl=window.location.origin+window.location.pathname;
+  const[url,setUrl]=useState("");
+  const[copied,setCopied]=useState(false);
+  function copy(){navigator.clipboard?.writeText(GS_CODE).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2500);});}
   return<div style={{minHeight:"100vh",background:CR,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-    <div style={{background:W,borderRadius:12,padding:40,maxWidth:600,width:"100%",boxShadow:"0 8px 40px rgba(16,43,66,.12)"}}>
+    <div style={{background:W,borderRadius:12,padding:40,maxWidth:660,width:"100%",boxShadow:"0 8px 40px rgba(16,43,66,.12)"}}>
       <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:28,paddingBottom:20,borderBottom:"1px solid #E5E7EB"}}>
         <div style={{width:3,height:40,background:G,borderRadius:2}}/>
-        <div><div style={{color:MU,fontSize:10,fontWeight:600,letterSpacing:"2px",textTransform:"uppercase"}}>Universidad San Sebastián</div><div style={{color:N,fontSize:18,fontWeight:700,fontFamily:"Libre Baskerville,serif"}}>Inventario Ediciones USS</div></div>
+        <div><div style={{color:MU,fontSize:10,fontWeight:600,letterSpacing:"2px",textTransform:"uppercase"}}>Universidad San Sebastián</div>
+          <div style={{color:N,fontSize:18,fontWeight:700,fontFamily:"Libre Baskerville,serif"}}>Inventario Ediciones USS</div></div>
       </div>
-      <h3 style={{color:N,fontSize:15,marginBottom:6}}>Conectar con OneDrive</h3>
-      <p style={{color:MU,fontSize:13,marginBottom:24,lineHeight:1.6}}>Los datos quedarán en un Excel real en OneDrive — visible y editable por todo tu equipo.</p>
-      <div style={{marginBottom:18}}><LBL ch="Azure App Client ID *"/><Inp value={clientId} onChange={setClientId} placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" style={{width:"100%",fontFamily:"monospace"}}/></div>
-      <div style={{marginBottom:24}}><LBL ch="Ruta del archivo Excel en OneDrive"/><Inp value={filePath} onChange={setFilePath} placeholder={DEFAULT_PATH} style={{width:"100%"}}/><div style={{fontSize:11,color:MU,marginTop:4}}>El archivo y sus hojas se crean automáticamente en la primera conexión.</div></div>
-      <Btn onClick={()=>clientId.trim()&&onSave({clientId:clientId.trim(),filePath:filePath.trim()||DEFAULT_PATH})} disabled={!clientId.trim()}>Guardar y conectar →</Btn>
-      <div style={{marginTop:28,padding:20,background:"#F8F9FF",borderRadius:8,border:"1px solid #E0E7FF"}}>
-        <div style={{fontWeight:700,color:N,fontSize:13,marginBottom:12}}>📋 Instrucciones: Registrar app en Azure (5 min)</div>
-        <ol style={{fontSize:12,color:MU,lineHeight:1.8,paddingLeft:18}}>
-          <li>Ve a <a href="https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps/ApplicationsListBlade" target="_blank">portal.azure.com → App registrations</a> e inicia sesión.</li>
-          <li>Clic en <strong style={{color:N}}>+ New registration</strong>.</li>
-          <li>Nombre: <code>Inventario Ediciones USS</code>.</li>
-          <li>Account types: <strong style={{color:N}}>Accounts in any organizational directory and personal Microsoft accounts</strong>.</li>
-          <li>Redirect URI: <strong style={{color:N}}>Single-page application (SPA)</strong> → ingresa exactamente:<br/><code style={{background:"#EEF2FF",display:"inline-block",marginTop:4,padding:"3px 8px",wordBreak:"break-all"}}>{currentUrl}</code></li>
-          <li>Clic en <strong style={{color:N}}>Register</strong>. Copia el <strong style={{color:N}}>Application (client) ID</strong> y pégalo arriba.</li>
-          <li>Ve a <strong style={{color:N}}>API permissions → Add a permission → Microsoft Graph → Delegated</strong> → activa <code>Files.ReadWrite</code>.</li>
+
+      <h3 style={{color:N,fontSize:15,marginBottom:6}}>Conectar con Google Sheets</h3>
+      <p style={{color:MU,fontSize:13,marginBottom:24,lineHeight:1.6}}>Los datos quedan en una planilla Google compartida con tu equipo. Solo necesitas hacer esto una vez — no requiere permisos de TI ni cuentas especiales.</p>
+
+      <div style={{background:"#F8F9FF",border:"1px solid #E0E7FF",borderRadius:8,padding:20,marginBottom:24}}>
+        <div style={{fontWeight:700,color:N,fontSize:13,marginBottom:14}}>📋 4 pasos de configuración</div>
+        <ol style={{fontSize:13,color:MU,lineHeight:2,paddingLeft:18}}>
+          <li>Crea una <strong style={{color:N}}>Google Sheets</strong> nueva con 3 pestañas: <code>Libros</code> · <code>Regalos</code> · <code>Consignaciones</code></li>
+          <li>En esa planilla, ve a <strong style={{color:N}}>Extensiones → Apps Script</strong>, borra el código que aparece y pega el código de abajo. Guarda con Ctrl+S.</li>
+          <li>Clic en <strong style={{color:N}}>Implementar → Nueva implementación</strong> → tipo: <strong style={{color:N}}>Aplicación web</strong> → Ejecutar como: <strong style={{color:N}}>Yo</strong> → Quién tiene acceso: <strong style={{color:N}}>Cualquier persona</strong> → <strong style={{color:N}}>Implementar</strong>. Autoriza si te lo pide.</li>
+          <li>Copia la <strong style={{color:N}}>URL de la aplicación web</strong> que aparece y pégala abajo.</li>
         </ol>
+      </div>
+
+      <div style={{marginBottom:20}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+          <LBL ch="Código para Apps Script (cópialo completo)"/>
+          <button onClick={copy} style={{background:copied?GRL:"#F3F4F6",border:`1px solid ${copied?GR:"#D1D5DB"}`,borderRadius:6,padding:"4px 12px",cursor:"pointer",fontSize:12,color:copied?GR:MU,fontWeight:600}}>
+            {copied?"✓ Copiado":"Copiar código"}
+          </button>
+        </div>
+        <pre style={{maxHeight:180,fontSize:11}}>{GS_CODE}</pre>
+      </div>
+
+      <div style={{marginBottom:20}}>
+        <LBL ch="URL de la aplicación web de Apps Script *"/>
+        <Inp value={url} onChange={setUrl} placeholder="https://script.google.com/macros/s/…/exec" style={{width:"100%",fontFamily:"monospace",fontSize:12}}/>
+        <div style={{fontSize:11,color:MU,marginTop:4}}>La primera vez que conectes, se cargarán automáticamente los 77 títulos del catálogo inicial.</div>
+      </div>
+
+      <Btn onClick={()=>url.trim()&&onSave(url.trim())} disabled={!url.trim()}>Conectar con Google Sheets →</Btn>
+
+      <div style={{marginTop:16,padding:"10px 14px",background:ORL,borderRadius:6,fontSize:12,color:OR}}>
+        ⚠ La URL del script es la "llave" de acceso a tus datos. Compártela solo con tu equipo.
       </div>
     </div>
   </div>;
@@ -362,6 +386,7 @@ function SetupScreen({onSave}){
 const BLANK={titulo:"",autor:"",isbn:"",pN:"",pU:"",ano:"",si:"",me:"0",cat:"Historia y Política",catCustom:""};
 function libroToForm(l){return{titulo:l.titulo||"",autor:l.autor||"",isbn:l.isbn||"",pN:l.pN??"",pU:l.pU??"",ano:l.ano??"",si:l.si??"",me:l.me??"0",cat:CATS.includes(l.cat)?l.cat:"__otra__",catCustom:CATS.includes(l.cat)?"":l.cat};}
 function formToLibro(f,id,bodegas){const cat=f.cat==="__otra__"?(f.catCustom.trim()||"Sin categoría"):f.cat;return{id,titulo:f.titulo.trim(),autor:f.autor.trim(),isbn:f.isbn.trim()||null,pN:toNum(f.pN),pU:toNum(f.pU),ano:toNum(f.ano),si:parseInt(f.si)||0,me:parseInt(f.me)||0,cat,bodegas:bodegas||BLANK_BOD()};}
+
 function BookForm({initial=BLANK,initBod,onSave,onCancel,isEdit=false}){
   const[f,setF]=useState(initial);
   const[bod,setBod]=useState(initBod||BLANK_BOD());
@@ -376,7 +401,7 @@ function BookForm({initial=BLANK,initBod,onSave,onCancel,isEdit=false}){
       <div><LBL ch="Año"/><Inp type="number" value={f.ano} onChange={set("ano")} placeholder="Ej: 2024" style={{width:"100%"}}/></div>
       <div><LBL ch="Precio Normal ($)"/><Inp type="number" value={f.pN} onChange={set("pN")} min="0" style={{width:"100%"}}/></div>
       <div><LBL ch="Precio USS ($)"/><Inp type="number" value={f.pU} onChange={set("pU")} min="0" style={{width:"100%"}}/></div>
-      <div><LBL ch={isEdit?"Stock inicial *":"Stock inicial *"}/><Inp type="number" value={f.si} onChange={set("si")} min="0" style={{width:"100%"}}/>{isEdit&&<div style={{fontSize:11,color:OR,marginTop:2}}>⚠ Modificar esto recalcula el disponible.</div>}</div>
+      <div><LBL ch="Stock inicial *"/><Inp type="number" value={f.si} onChange={set("si")} min="0" style={{width:"100%"}}/>{isEdit&&<div style={{fontSize:11,color:OR,marginTop:2}}>⚠ Modifica el disponible.</div>}</div>
       <div><LBL ch="Mal estado"/><Inp type="number" value={f.me} onChange={set("me")} min="0" style={{width:"100%"}}/></div>
       <div style={{gridColumn:"1/-1"}}>
         <LBL ch="Categoría"/>
@@ -385,10 +410,7 @@ function BookForm({initial=BLANK,initBod,onSave,onCancel,isEdit=false}){
           {f.cat==="__otra__"&&<Inp value={f.catCustom} onChange={set("catCustom")} placeholder="Nueva categoría" style={{flex:1}}/>}
         </div>
       </div>
-      <div style={{gridColumn:"1/-1"}}>
-        <LBL ch="Stock por bodega"/>
-        <BodegasSection bodegas={bod} onChange={setBod}/>
-      </div>
+      <div style={{gridColumn:"1/-1"}}><LBL ch="Stock por bodega"/><BodegasSection bodegas={bod} onChange={setBod}/></div>
     </div>
     {err&&<div style={{color:RD,fontSize:12,marginBottom:10}}>{err}</div>}
     <div style={{display:"flex",gap:10}}>
@@ -422,13 +444,12 @@ function BookDetailPanel({libro,regalos,consignaciones,libros,onSaveRegalos,onSa
   const[rf,setRf]=useState({cantidad:"",fecha:new Date().toISOString().slice(0,10),stakeholder:"",nota:""});
   const[rErr,setRErr]=useState("");
   const misRegalos=regalos.filter(r=>r.libroId===libro.id).sort((a,b)=>b.fecha.localeCompare(a.fecha));
-  function subReg(){if(!rf.cantidad||!rf.fecha||!rf.stakeholder.trim()){setRErr("Completa todos los campos.");return;}const c=parseInt(rf.cantidad);if(!c||c<=0){setRErr("Cantidad inválida.");return;}const fr=calcStock(libro.id,regalos,consignaciones,libros);if(c>fr.disp){setRErr(`Disponible: ${fr.disp} ej.`);return;}onSaveRegalos([...regalos,{id:uid(),libroId:libro.id,cantidad:c,fecha:rf.fecha,stakeholder:rf.stakeholder.trim(),nota:rf.nota}]);setToast(`${c} ejs. registrados como regalo.`);setRf({cantidad:"",fecha:new Date().toISOString().slice(0,10),stakeholder:"",nota:""});setShowRF(false);setRErr("");}
+  function subReg(){if(!rf.cantidad||!rf.fecha||!rf.stakeholder.trim()){setRErr("Completa todos los campos.");return;}const c=parseInt(rf.cantidad);if(!c||c<=0){setRErr("Cantidad inválida.");return;}const fr=calcStock(libro.id,regalos,consignaciones,libros);if(c>fr.disp){setRErr(`Disponible: ${fr.disp} ej.`);return;}onSaveRegalos([...regalos,{id:uid(),libroId:libro.id,cantidad:c,fecha:rf.fecha,stakeholder:rf.stakeholder.trim(),nota:rf.nota}]);setToast(`${c} ejs. registrados.`);setRf({cantidad:"",fecha:new Date().toISOString().slice(0,10),stakeholder:"",nota:""});setShowRF(false);setRErr("");}
 
   const EC={activa:{bg:BLL,cl:BL},liquidada:{bg:GRL,cl:GR},devuelta:{bg:ORL,cl:OR}};
 
   return<div ref={ref} className="pin" style={{background:W,border:`2px solid ${G}`,borderRadius:10,overflow:"hidden",boxShadow:"0 8px 32px rgba(16,43,66,.13)",marginBottom:8}}>
     {toast&&<Toast msg={toast} onClose={()=>setToast("")}/>}
-    {/* Header */}
     <div style={{background:N,padding:"16px 22px"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12}}>
         <div style={{flex:1}}>
@@ -447,7 +468,6 @@ function BookDetailPanel({libro,regalos,consignaciones,libros,onSaveRegalos,onSa
         </div>
       </div>
     </div>
-    {/* Edit form */}
     {editingInfo&&<div style={{padding:"16px 22px",background:"#F0F4FF",borderBottom:"1px solid #C7D2FE"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
         <span style={{fontWeight:700,fontSize:14,color:N}}>Editar información</span>
@@ -455,7 +475,6 @@ function BookDetailPanel({libro,regalos,consignaciones,libros,onSaveRegalos,onSa
       </div>
       <BookForm initial={libroToForm(libro)} initBod={libro.bodegas||BLANK_BOD()} onSave={handleSaveInfo} onCancel={()=>setEditingInfo(false)} isEdit={true}/>
     </div>}
-    {/* Stock + Bodegas */}
     <div style={{padding:"14px 22px",background:"#F9F7F3",borderBottom:`1px solid ${G2}`}}>
       <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10,marginBottom:14}}>
         {[["Stock inicial",libro.si,N],["Mal estado",s.malEstado,RD],["Regalados",s.regalados,G],["En consignación",s.enConsig,"#2563EB"],["Disponible",s.disp,dispColor]].map(([lbl,val,col])=>
@@ -465,18 +484,16 @@ function BookDetailPanel({libro,regalos,consignaciones,libros,onSaveRegalos,onSa
           </div>
         )}
       </div>
-      {s.disp<20&&s.disp>=0&&<div style={{marginBottom:12,padding:"7px 14px",background:s.disp===0?RDL:ORL,borderRadius:6,fontSize:12,color:s.disp===0?RD:OR,fontWeight:500}}>{s.disp===0?"⚠ Título agotado.":`⚠ Stock bajo — solo ${s.disp} ejs. disponibles.`}</div>}
-      {/* Bodegas display */}
+      {s.disp<20&&s.disp>=0&&<div style={{marginBottom:12,padding:"7px 14px",background:s.disp===0?RDL:ORL,borderRadius:6,fontSize:12,color:s.disp===0?RD:OR,fontWeight:500}}>{s.disp===0?"⚠ Título agotado.":`⚠ Stock bajo — solo ${s.disp} ejs.`}</div>}
       <div style={{fontSize:11,fontWeight:700,color:N,textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>📦 Distribución por bodega</div>
       <BodegasSection bodegas={libro.bodegas||BLANK_BOD()}/>
     </div>
-    {/* Consig + Regalos */}
     <div style={{padding:"20px 22px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
       <div>
         <SH title="📋 Consignaciones" action={<Btn sm v="blue" onClick={()=>{setShowCF(o=>!o);setCErr("");}}>{showCF?"Cancelar":"+ Nueva"}</Btn>}/>
         {showCF&&<div style={{background:"#EFF6FF",border:"1px solid #BFDBFE",borderRadius:8,padding:14,marginBottom:14}}>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
-            <div style={{gridColumn:"1/-1"}}><LBL ch="Distribuidora *"/><Inp value={cf.distribuidor} onChange={v=>setCf({...cf,distribuidor:v})} placeholder="Ej: Librería Antártica…" style={{width:"100%"}}/></div>
+            <div style={{gridColumn:"1/-1"}}><LBL ch="Distribuidora *"/><Inp value={cf.distribuidor} onChange={v=>setCf({...cf,distribuidor:v})} style={{width:"100%"}}/></div>
             <div><LBL ch="Cantidad *"/><Inp type="number" value={cf.cantEnv} onChange={v=>setCf({...cf,cantEnv:v})} min="1" style={{width:"100%"}}/></div>
             <div><LBL ch="Fecha envío *"/><Inp type="date" value={cf.fechaEnv} onChange={v=>setCf({...cf,fechaEnv:v})} style={{width:"100%"}}/></div>
             <div style={{gridColumn:"1/-1"}}><LBL ch="Notas"/><Inp value={cf.notas} onChange={v=>setCf({...cf,notas:v})} style={{width:"100%"}}/></div>
@@ -484,8 +501,8 @@ function BookDetailPanel({libro,regalos,consignaciones,libros,onSaveRegalos,onSa
           {cErr&&<div style={{color:RD,fontSize:12,marginBottom:8}}>{cErr}</div>}
           <Btn onClick={subCons}>Guardar consignación</Btn>
         </div>}
-        {misCons.length===0?<p style={{fontSize:13,color:MU,textAlign:"center",padding:"20px 0"}}>Sin consignaciones para este título.</p>:misCons.map(c=>{
-          const neto=c.cantEnv-(c.cantVend||0)-(c.cantDev||0);const ec=EC[c.estado]||{bg:"#F3F4F6",cl:MU};const isE=editCId===c.id;
+        {misCons.length===0?<p style={{fontSize:13,color:MU,textAlign:"center",padding:"20px 0"}}>Sin consignaciones para este título.</p>
+        :misCons.map(c=>{const neto=c.cantEnv-(c.cantVend||0)-(c.cantDev||0);const ec=EC[c.estado]||{bg:"#F3F4F6",cl:MU};const isE=editCId===c.id;
           return<div key={c.id} style={{border:"1px solid #E5E7EB",borderRadius:8,padding:"12px 14px",marginBottom:10,background:"#FAFAFA"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
               <div><div style={{fontWeight:600,color:N,fontSize:13}}>{c.distribuidor}</div><div style={{fontSize:11,color:MU}}>{fD(c.fechaEnv)}{c.notas?` · ${c.notas}`:""}</div></div>
@@ -493,19 +510,16 @@ function BookDetailPanel({libro,regalos,consignaciones,libros,onSaveRegalos,onSa
             </div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:10}}>
               {[["Enviado",c.cantEnv,"#374151"],["Vendido",c.cantVend||0,GR],["Devuelto",c.cantDev||0,OR],["En consig.",neto,"#2563EB"]].map(([lbl,val,col])=>
-                <div key={lbl} style={{textAlign:"center",background:W,border:"1px solid #E5E7EB",borderRadius:6,padding:"5px 4px"}}>
-                  <div style={{fontSize:15,fontWeight:700,color:col}}>{val}</div><div style={{fontSize:10,color:MU}}>{lbl}</div>
-                </div>
+                <div key={lbl} style={{textAlign:"center",background:W,border:"1px solid #E5E7EB",borderRadius:6,padding:"5px 4px"}}><div style={{fontSize:15,fontWeight:700,color:col}}>{val}</div><div style={{fontSize:10,color:MU}}>{lbl}</div></div>
               )}
             </div>
-            {isE?(<div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:8}}>
+            {isE?<div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:8}}>
               <div><LBL ch="Vendidos"/><Inp type="number" value={ecf.cantVend} onChange={v=>setEcf({...ecf,cantVend:v})} style={{width:"100%"}} min="0"/></div>
               <div><LBL ch="Devueltos"/><Inp type="number" value={ecf.cantDev} onChange={v=>setEcf({...ecf,cantDev:v})} style={{width:"100%"}} min="0"/></div>
               <div><LBL ch="Estado"/><Sel value={ecf.estado} onChange={v=>setEcf({...ecf,estado:v})} options={[{v:"activa",l:"Activa"},{v:"liquidada",l:"Liquidada"},{v:"devuelta",l:"Devuelta"}]} style={{width:"100%",padding:"6px 8px"}}/></div>
-            </div><div style={{display:"flex",gap:8}}><Btn sm onClick={()=>saveCons(c.id)}>✓ Guardar</Btn><Btn sm v="ghost" onClick={()=>setEditCId(null)}>Cancelar</Btn></div></div>)
-            :(<div style={{display:"flex",gap:8}}><Btn sm v="secondary" onClick={()=>{setEditCId(c.id);setEcf({cantVend:c.cantVend||0,cantDev:c.cantDev||0,estado:c.estado});}}>Actualizar</Btn><Btn sm v="danger" onClick={()=>{if(window.confirm("¿Eliminar consignación?"))onSaveConsignaciones(consignaciones.filter(x=>x.id!==c.id));}}>Eliminar</Btn></div>)}
-          </div>;
-        })}
+            </div><div style={{display:"flex",gap:8}}><Btn sm onClick={()=>saveCons(c.id)}>✓ Guardar</Btn><Btn sm v="ghost" onClick={()=>setEditCId(null)}>Cancelar</Btn></div></div>
+            :<div style={{display:"flex",gap:8}}><Btn sm v="secondary" onClick={()=>{setEditCId(c.id);setEcf({cantVend:c.cantVend||0,cantDev:c.cantDev||0,estado:c.estado});}}>Actualizar</Btn><Btn sm v="danger" onClick={()=>{if(window.confirm("¿Eliminar?"))onSaveConsignaciones(consignaciones.filter(x=>x.id!==c.id));}}>Eliminar</Btn></div>}
+          </div>;})}
       </div>
       <div>
         <SH title="🎁 Regalos / Donaciones" action={<Btn sm v="secondary" onClick={()=>{setShowRF(o=>!o);setRErr("");}}>{showRF?"Cancelar":"+ Nuevo"}</Btn>}/>
@@ -513,25 +527,24 @@ function BookDetailPanel({libro,regalos,consignaciones,libros,onSaveRegalos,onSa
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
             <div><LBL ch="Cantidad *"/><Inp type="number" value={rf.cantidad} onChange={v=>setRf({...rf,cantidad:v})} min="1" style={{width:"100%"}}/></div>
             <div><LBL ch="Fecha *"/><Inp type="date" value={rf.fecha} onChange={v=>setRf({...rf,fecha:v})} style={{width:"100%"}}/></div>
-            <div style={{gridColumn:"1/-1"}}><LBL ch="Stakeholder *"/><Inp value={rf.stakeholder} onChange={v=>setRf({...rf,stakeholder:v})} placeholder="Ej: Ministerio de Educación…" style={{width:"100%"}}/></div>
+            <div style={{gridColumn:"1/-1"}}><LBL ch="Stakeholder *"/><Inp value={rf.stakeholder} onChange={v=>setRf({...rf,stakeholder:v})} style={{width:"100%"}}/></div>
             <div style={{gridColumn:"1/-1"}}><LBL ch="Nota (opcional)"/><Inp value={rf.nota} onChange={v=>setRf({...rf,nota:v})} style={{width:"100%"}}/></div>
           </div>
           {rErr&&<div style={{color:RD,fontSize:12,marginBottom:8}}>{rErr}</div>}
           <Btn v="secondary" onClick={subReg}>Guardar regalo</Btn>
         </div>}
-        {misRegalos.length===0?<p style={{fontSize:13,color:MU,textAlign:"center",padding:"20px 0"}}>Sin regalos para este título.</p>:misRegalos.map((r,i)=>(
-          <div key={r.id} style={{border:"1px solid #E5E7EB",borderRadius:8,padding:"12px 14px",marginBottom:10,background:i%2===0?"#FAFAFA":W}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-              <div style={{flex:1}}><div style={{fontWeight:600,color:N,fontSize:13}}>{r.stakeholder}</div><div style={{fontSize:11,color:MU,marginTop:2}}>{fD(r.fecha)}{r.nota?` · ${r.nota}`:""}</div></div>
-              <div style={{display:"flex",alignItems:"center",gap:8}}>
-                <span style={{fontWeight:700,fontSize:17,color:G,fontFamily:"Libre Baskerville,serif"}}>{r.cantidad}</span>
-                <span style={{fontSize:11,color:MU}}>ej.</span>
-                <Btn sm v="danger" onClick={()=>{if(window.confirm("¿Eliminar?"))onSaveRegalos(regalos.filter(x=>x.id!==r.id));}}>✕</Btn>
-              </div>
+        {misRegalos.length===0?<p style={{fontSize:13,color:MU,textAlign:"center",padding:"20px 0"}}>Sin regalos para este título.</p>
+        :misRegalos.map((r,i)=><div key={r.id} style={{border:"1px solid #E5E7EB",borderRadius:8,padding:"12px 14px",marginBottom:10,background:i%2===0?"#FAFAFA":W}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+            <div style={{flex:1}}><div style={{fontWeight:600,color:N,fontSize:13}}>{r.stakeholder}</div><div style={{fontSize:11,color:MU,marginTop:2}}>{fD(r.fecha)}{r.nota?` · ${r.nota}`:""}</div></div>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <span style={{fontWeight:700,fontSize:17,color:G,fontFamily:"Libre Baskerville,serif"}}>{r.cantidad}</span>
+              <span style={{fontSize:11,color:MU}}>ej.</span>
+              <Btn sm v="danger" onClick={()=>{if(window.confirm("¿Eliminar?"))onSaveRegalos(regalos.filter(x=>x.id!==r.id));}}>✕</Btn>
             </div>
           </div>
-        ))}
-        {misRegalos.length>0&&<div style={{marginTop:6,padding:"7px 12px",background:G2,borderRadius:6,fontSize:12,color:N,textAlign:"right"}}>Total donado: <strong>{misRegalos.reduce((s,r)=>s+r.cantidad,0)} ejemplares</strong></div>}
+        </div>)}
+        {misRegalos.length>0&&<div style={{marginTop:6,padding:"7px 12px",background:G2,borderRadius:6,fontSize:12,color:N,textAlign:"right"}}>Total donado: <strong>{misRegalos.reduce((s,r)=>s+r.cantidad,0)} ejs.</strong></div>}
       </div>
     </div>
   </div>;
@@ -557,9 +570,7 @@ function Catalogo({libros,regalos,consignaciones,onSaveLibros,onSaveRegalos,onSa
     </div>
     {addOpen&&<div className="pin" style={{marginBottom:18}}>
       <div style={{background:N,padding:"11px 18px",borderRadius:"8px 8px 0 0"}}><span style={{color:W,fontWeight:600,fontSize:14}}>Agregar nuevo título</span></div>
-      <div style={{padding:18,background:W,borderRadius:"0 0 8px 8px",border:"1px solid #E5E7EB",borderTop:"none"}}>
-        <BookForm onSave={handleAdd} onCancel={()=>setAddOpen(false)}/>
-      </div>
+      <div style={{padding:18,background:W,borderRadius:"0 0 8px 8px",border:"1px solid #E5E7EB",borderTop:"none"}}><BookForm onSave={handleAdd} onCancel={()=>setAddOpen(false)}/></div>
     </div>}
     <div style={{background:W,borderRadius:8,boxShadow:"0 1px 6px rgba(0,0,0,.07)",overflow:"hidden"}}>
       <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
@@ -597,11 +608,11 @@ function Catalogo({libros,regalos,consignaciones,onSaveLibros,onSaveRegalos,onSa
 }
 
 /* ── ESCÁNER ── */
-function Scanner({libros,regalos,consignaciones,onSaveRegalos,onSaveConsignaciones,onSaveLibros}){
+function Scanner({libros,regalos,consignaciones,onSaveRegalos,onSaveLibros}){
   const[isbn,setIsbn]=useState("");
   const[found,setFound]=useState(null);
   const[notFound,setNotFound]=useState(false);
-  const[action,setAction]=useState(null); // "entrada"|"regalo"|"consignacion"
+  const[action,setAction]=useState(null);
   const[qty,setQty]=useState("1");
   const[stakeholder,setStakeholder]=useState("");
   const[fecha,setFecha]=useState(new Date().toISOString().slice(0,10));
@@ -610,8 +621,7 @@ function Scanner({libros,regalos,consignaciones,onSaveRegalos,onSaveConsignacion
   useEffect(()=>{inputRef.current?.focus();},[]);
 
   function handleScan(val){
-    const clean=val.trim();
-    if(!clean)return;
+    const clean=val.trim();if(!clean)return;
     const book=libros.find(l=>l.isbn&&l.isbn.trim()===clean);
     if(book){setFound(book);setNotFound(false);setAction(null);setQty("1");}
     else{setFound(null);setNotFound(true);}
@@ -621,9 +631,8 @@ function Scanner({libros,regalos,consignaciones,onSaveRegalos,onSaveConsignacion
 
   function doEntrada(){
     const q=parseInt(qty);if(!q||q<=0)return;
-    const updated=libros.map(l=>l.id===found.id?{...l,si:l.si+q}:l);
-    onSaveLibros(updated);
-    setMsg(`✓ Entrada registrada: +${q} ejs. de "${trunc(found.titulo,35)}"`);
+    onSaveLibros(libros.map(l=>l.id===found.id?{...l,si:l.si+q}:l));
+    setMsg(`✓ Entrada: +${q} ejs. de "${trunc(found.titulo,35)}"`);
     setFound(null);setAction(null);
     setTimeout(()=>inputRef.current?.focus(),100);
   }
@@ -633,7 +642,7 @@ function Scanner({libros,regalos,consignaciones,onSaveRegalos,onSaveConsignacion
     const s=calcStock(found.id,regalos,consignaciones,libros);
     if(q>s.disp){setMsg(`⚠ Stock insuficiente. Disponible: ${s.disp} ejs.`);return;}
     onSaveRegalos([...regalos,{id:uid(),libroId:found.id,cantidad:q,fecha,stakeholder:stakeholder.trim(),nota:"Escáner"}]);
-    setMsg(`✓ Regalo registrado: ${q} ejs. → ${stakeholder}`);
+    setMsg(`✓ Regalo: ${q} ejs. → ${stakeholder}`);
     setFound(null);setAction(null);setStakeholder("");
     setTimeout(()=>inputRef.current?.focus(),100);
   }
@@ -642,35 +651,25 @@ function Scanner({libros,regalos,consignaciones,onSaveRegalos,onSaveConsignacion
 
   return<div>
     <h2 style={{color:N,fontSize:17,fontFamily:"Libre Baskerville,serif",marginBottom:6}}>Escáner de código de barras</h2>
-    <p style={{color:MU,fontSize:13,marginBottom:20,lineHeight:1.6}}>Conecta tu lector USB, haz clic en el campo de abajo y escanea cualquier libro. El lector actúa como teclado — escribe el ISBN y presiona Enter automáticamente.</p>
-
-    {/* Scan input */}
+    <p style={{color:MU,fontSize:13,marginBottom:20,lineHeight:1.6}}>Conecta tu lector USB, haz clic en el campo de abajo y escanea cualquier libro. El lector tipea el ISBN automáticamente y presiona Enter.</p>
     <div style={{background:W,borderRadius:10,padding:24,marginBottom:20,boxShadow:"0 1px 6px rgba(0,0,0,.07)",border:`2px solid ${G}`}}>
       <div style={{display:"flex",gap:12,alignItems:"center"}}>
         <div style={{fontSize:32}}>📷</div>
         <div style={{flex:1}}>
           <LBL ch="Escanea o escribe un ISBN"/>
           <div style={{display:"flex",gap:10}}>
-            <Inp ref={inputRef} value={isbn} onChange={setIsbn}
-              placeholder="Apunta el lector al código de barras del libro…"
-              autoFocus={true}
-              onKeyDown={e=>{if(e.key==="Enter")handleScan(isbn);}}
+            <Inp value={isbn} onChange={setIsbn} placeholder="Apunta el lector al código de barras…"
+              autoFocus={true} onKeyDown={e=>{if(e.key==="Enter")handleScan(isbn);}}
               style={{flex:1,fontSize:15,padding:"10px 14px",border:`2px solid ${G}`,background:"#FFFBF0"}}/>
             <Btn v="secondary" onClick={()=>handleScan(isbn)}>Buscar</Btn>
           </div>
         </div>
       </div>
-      <div style={{marginTop:10,fontSize:11,color:MU}}>💡 El lector envía el ISBN y un Enter automáticamente — no necesitas hacer nada más que apuntar y escanear.</div>
+      <div style={{marginTop:10,fontSize:11,color:MU}}>💡 El lector envía el ISBN y un Enter automáticamente — solo apunta y escanea.</div>
     </div>
-
-    {/* Feedback msg */}
     {msg&&<div style={{marginBottom:16,padding:"10px 16px",background:msg.startsWith("⚠")?ORL:GRL,borderRadius:8,fontSize:13,color:msg.startsWith("⚠")?OR:GR,fontWeight:500}}>{msg}<button onClick={()=>setMsg("")} style={{float:"right",background:"none",border:"none",cursor:"pointer",color:"inherit",fontSize:16}}>✕</button></div>}
-
-    {/* Not found */}
-    {notFound&&<div style={{padding:20,background:RDL,borderRadius:8,marginBottom:16,fontSize:13,color:RD}}>❌ No se encontró ningún libro con ese ISBN. Verifica el código o agrégalo manualmente desde el Catálogo.</div>}
-
-    {/* Found book */}
-    {found&&<div className="pin" style={{background:W,borderRadius:10,border:`2px solid #2563EB`,overflow:"hidden",boxShadow:"0 4px 20px rgba(37,99,235,.15)"}}>
+    {notFound&&<div style={{padding:20,background:RDL,borderRadius:8,marginBottom:16,fontSize:13,color:RD}}>❌ No se encontró ningún libro con ese ISBN. Agrégalo desde el Catálogo.</div>}
+    {found&&<div className="pin" style={{background:W,borderRadius:10,border:"2px solid #2563EB",overflow:"hidden",boxShadow:"0 4px 20px rgba(37,99,235,.15)"}}>
       <div style={{background:"#1E3A8A",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
         <div>
           <div style={{color:"#93C5FD",fontSize:10,fontWeight:600,letterSpacing:"2px",textTransform:"uppercase",marginBottom:3}}>{found.cat} · ISBN {found.isbn}</div>
@@ -679,29 +678,22 @@ function Scanner({libros,regalos,consignaciones,onSaveRegalos,onSaveConsignacion
         </div>
         <button onClick={()=>{setFound(null);setAction(null);setMsg("");}} style={{background:"rgba(255,255,255,.15)",border:"none",cursor:"pointer",color:W,fontSize:16,width:28,height:28,borderRadius:6,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>✕</button>
       </div>
-      {/* Stock mini */}
       <div style={{padding:"12px 20px",background:"#EFF6FF",display:"flex",gap:20,fontSize:13,borderBottom:"1px solid #BFDBFE",flexWrap:"wrap"}}>
         {[["Stock inicial",found.si,N],["Disponible",s.disp,s.disp<=0?RD:s.disp<20?"#D97706":GR],["Regalados",s.regalados,G],["En consig.",s.enConsig,"#2563EB"]].map(([lbl,val,col])=>
-          <div key={lbl} style={{textAlign:"center",minWidth:70}}>
-            <div style={{fontSize:20,fontWeight:700,color:col,fontFamily:"Libre Baskerville,serif"}}>{val}</div>
-            <div style={{fontSize:10,color:MU}}>{lbl}</div>
-          </div>
+          <div key={lbl} style={{textAlign:"center",minWidth:70}}><div style={{fontSize:20,fontWeight:700,color:col,fontFamily:"Libre Baskerville,serif"}}>{val}</div><div style={{fontSize:10,color:MU}}>{lbl}</div></div>
         )}
       </div>
-      {/* Actions */}
       <div style={{padding:"16px 20px"}}>
-        {!action&&<div>
-          <div style={{fontSize:12,color:MU,marginBottom:12,fontWeight:600}}>¿QUÉ QUIERES REGISTRAR?</div>
+        {!action&&<div><div style={{fontSize:12,color:MU,marginBottom:12,fontWeight:600}}>¿QUÉ QUIERES REGISTRAR?</div>
           <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
             <Btn v="green" onClick={()=>setAction("entrada")}>📥 Entrada de stock</Btn>
             <Btn v="secondary" onClick={()=>setAction("regalo")}>🎁 Registrar regalo</Btn>
-            <Btn v="blue" onClick={()=>setAction("consignacion")}>📦 Nueva consignación</Btn>
           </div>
         </div>}
         {action==="entrada"&&<div>
-          <div style={{fontSize:13,fontWeight:600,color:GR,marginBottom:12}}>📥 Entrada de stock — se sumará al stock inicial</div>
+          <div style={{fontSize:13,fontWeight:600,color:GR,marginBottom:12}}>📥 Entrada de stock — se suma al stock inicial</div>
           <div style={{display:"flex",gap:10,alignItems:"flex-end"}}>
-            <div><LBL ch="Cantidad a agregar"/><Inp type="number" value={qty} onChange={setQty} min="1" style={{width:120}} autoFocus={true}/></div>
+            <div><LBL ch="Cantidad a agregar"/><Inp type="number" value={qty} onChange={setQty} min="1" autoFocus={true} style={{width:120}}/></div>
             <Btn v="green" onClick={doEntrada}>Confirmar entrada</Btn>
             <Btn v="ghost" onClick={()=>setAction(null)}>Cancelar</Btn>
           </div>
@@ -709,34 +701,14 @@ function Scanner({libros,regalos,consignaciones,onSaveRegalos,onSaveConsignacion
         {action==="regalo"&&<div>
           <div style={{fontSize:13,fontWeight:600,color:G,marginBottom:12}}>🎁 Registrar regalo / donación</div>
           <div style={{display:"grid",gridTemplateColumns:"auto auto 1fr",gap:10,alignItems:"flex-end"}}>
-            <div><LBL ch="Cantidad"/><Inp type="number" value={qty} onChange={setQty} min="1" style={{width:90}} autoFocus={true}/></div>
+            <div><LBL ch="Cantidad"/><Inp type="number" value={qty} onChange={setQty} min="1" autoFocus={true} style={{width:90}}/></div>
             <div><LBL ch="Fecha"/><Inp type="date" value={fecha} onChange={setFecha} style={{width:140}}/></div>
             <div><LBL ch="Stakeholder *"/><Inp value={stakeholder} onChange={setStakeholder} placeholder="Nombre del destinatario…" style={{width:"100%"}}/></div>
           </div>
-          <div style={{marginTop:10,display:"flex",gap:10}}>
-            <Btn v="secondary" onClick={doRegalo}>Confirmar regalo</Btn>
-            <Btn v="ghost" onClick={()=>setAction(null)}>Cancelar</Btn>
-          </div>
+          <div style={{marginTop:10,display:"flex",gap:10}}><Btn v="secondary" onClick={doRegalo}>Confirmar regalo</Btn><Btn v="ghost" onClick={()=>setAction(null)}>Cancelar</Btn></div>
         </div>}
-        {action==="consignacion"&&<div style={{fontSize:13,color:MU}}>Para consignaciones ve al panel del libro desde el Catálogo. <button onClick={()=>setAction(null)} style={{color:BL,background:"none",border:"none",cursor:"pointer",fontWeight:600}}>Cancelar</button></div>}
       </div>
     </div>}
-
-    {/* Scanner guide */}
-    <div style={{marginTop:24,padding:20,background:W,borderRadius:8,boxShadow:"0 1px 6px rgba(0,0,0,.07)"}}>
-      <div style={{fontWeight:700,color:N,fontSize:13,marginBottom:12}}>🛒 ¿Qué pistola lectora comprar?</div>
-      <p style={{fontSize:13,color:MU,lineHeight:1.7,marginBottom:12}}>Cualquier <strong style={{color:N}}>lector de código de barras USB tipo HID</strong> funciona sin instalación — se conecta al computador como si fuera un teclado. No necesita software especial ni drivers.</p>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}}>
-        {[["Económica (~$15-25 USD)","Lector 1D USB genérico","MercadoLibre: busca 'lector código barras USB'"],["Recomendada (~$30-50 USD)","Honeywell Voyager 1200g","Lee bien en todo ángulo, muy confiable"],["Premium (~$80+ USD)","Zebra DS2208","Bidireccional, lee QR también"]].map(([p,m,d])=>
-          <div key={m} style={{padding:"12px 14px",background:"#F9FAFB",borderRadius:8,border:"1px solid #E5E7EB"}}>
-            <div style={{fontSize:11,color:G,fontWeight:700,marginBottom:4}}>{p}</div>
-            <div style={{fontWeight:600,color:N,fontSize:13,marginBottom:4}}>{m}</div>
-            <div style={{fontSize:11,color:MU}}>{d}</div>
-          </div>
-        )}
-      </div>
-      <div style={{marginTop:12,fontSize:12,color:MU,background:"#F0F9FF",padding:"8px 12px",borderRadius:6}}>💡 Asegúrate de que el lector esté configurado en <strong>modo USB HID (teclado)</strong>, no modo COM/serial — casi todos vienen así de fábrica.</div>
-    </div>
   </div>;
 }
 
@@ -749,7 +721,6 @@ function Dashboard({libros,regalos,consignaciones}){
   const alertas=useMemo(()=>libros.filter(l=>{const d=gs(l.id).disp;return d>=0&&d<20;}),[libros,regalos,consignaciones]);
   const agotados=useMemo(()=>libros.filter(l=>gs(l.id).disp<=0),[libros,regalos,consignaciones]);
   const cats=useMemo(()=>{const m={};libros.forEach(l=>{if(!m[l.cat])m[l.cat]={t:0,d:0};m[l.cat].t++;m[l.cat].d+=Math.max(0,gs(l.id).disp);});return Object.entries(m).sort((a,b)=>b[1].d-a[1].d);},[libros,regalos,consignaciones]);
-  // Bodegas totals
   const bodTotals=useMemo(()=>{const m=Object.fromEntries(BOD_NAMES.map(k=>[k,0]));libros.forEach(l=>BOD_NAMES.forEach(k=>{m[k]+=(l.bodegas?.[k]||0);}));return m;},[libros]);
   const maxBod=Math.max(...Object.values(bodTotals),1);
   const lastR=[...regalos].sort((a,b)=>b.fecha.localeCompare(a.fecha)).slice(0,5);
@@ -765,21 +736,13 @@ function Dashboard({libros,regalos,consignaciones}){
       <KPI label="Alertas stock bajo" value={alertas.length} accent="#D97706"/>
       <KPI label="Títulos agotados" value={agotados.length} accent={RD}/>
     </div>
-    {/* Bodegas panel */}
     <div style={{marginBottom:14}}>
       <P t="🏭 Stock por bodega">
-        {BOD_NAMES.map(k=>{
-          const v=bodTotals[k];const pct=Math.round((v/maxBod)*100);
+        {BOD_NAMES.map(k=>{const v=bodTotals[k];const pct=Math.round((v/maxBod)*100);
           return<div key={k} style={{marginBottom:12}}>
-            <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
-              <span style={{fontSize:13,fontWeight:600,color:N}}>{k}</span>
-              <span style={{fontSize:13,fontWeight:700,color:"#2563EB"}}>{v.toLocaleString("es-CL")}</span>
-            </div>
-            <div style={{height:8,background:"#E5E7EB",borderRadius:4,overflow:"hidden"}}>
-              <div style={{height:"100%",width:`${pct}%`,background:v===0?"#E5E7EB":"#2563EB",borderRadius:4,transition:"width .3s"}}/>
-            </div>
-          </div>;
-        })}
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontSize:13,fontWeight:600,color:N}}>{k}</span><span style={{fontSize:13,fontWeight:700,color:"#2563EB"}}>{v.toLocaleString("es-CL")}</span></div>
+            <div style={{height:8,background:"#E5E7EB",borderRadius:4,overflow:"hidden"}}><div style={{height:"100%",width:`${pct}%`,background:v===0?"#E5E7EB":"#2563EB",borderRadius:4,transition:"width .3s"}}/></div>
+          </div>;})}
         <div style={{marginTop:8,fontSize:11,color:MU,textAlign:"right"}}>Total en bodegas: <strong style={{color:N}}>{Object.values(bodTotals).reduce((s,v)=>s+v,0).toLocaleString("es-CL")}</strong></div>
       </P>
     </div>
@@ -805,13 +768,13 @@ function Regalos({libros,regalos,onSave,consignaciones}){
   const vis=regalos.filter(r=>{if(!filtro)return true;const q=filtro.toLowerCase();return r.stakeholder.toLowerCase().includes(q)||(libros.find(l=>l.id===r.libroId)?.titulo||"").toLowerCase().includes(q);}).sort((a,b)=>b.fecha.localeCompare(a.fecha));
   return<div>
     {toast&&<Toast msg={toast} onClose={()=>setToast("")}/>}
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}><div><h2 style={{margin:0,color:N,fontSize:17,fontFamily:"Libre Baskerville,serif"}}>Regalos y Donaciones</h2><p style={{margin:"4px 0 0",color:MU,fontSize:13}}>{regalos.length} registros · {regalos.reduce((s,r)=>s+r.cantidad,0).toLocaleString("es-CL")} ejemplares</p></div><Btn onClick={()=>setOpen(o=>!o)}>{open?"Cancelar":"+ Registrar regalo"}</Btn></div>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}><div><h2 style={{margin:0,color:N,fontSize:17,fontFamily:"Libre Baskerville,serif"}}>Regalos y Donaciones</h2><p style={{margin:"4px 0 0",color:MU,fontSize:13}}>{regalos.length} registros · {regalos.reduce((s,r)=>s+r.cantidad,0).toLocaleString("es-CL")} ejs.</p></div><Btn onClick={()=>setOpen(o=>!o)}>{open?"Cancelar":"+ Registrar regalo"}</Btn></div>
     {open&&<div style={{background:W,borderRadius:8,padding:22,marginBottom:18,boxShadow:"0 1px 6px rgba(0,0,0,.07)",borderTop:`3px solid ${G}`}}>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
         <div style={{gridColumn:"1/-1"}}><LBL ch="Título *"/><Sel value={form.libroId} onChange={v=>setForm({...form,libroId:v})} options={libroOpts} placeholder="Selecciona un libro…" style={{width:"100%"}}/>{stats&&<div style={{marginTop:5,fontSize:12,color:MU}}>Disponible: <strong style={{color:stats.disp<20?"#D97706":GR}}>{stats.disp} ej.</strong></div>}</div>
         <div><LBL ch="Cantidad *"/><Inp type="number" value={form.cantidad} onChange={v=>setForm({...form,cantidad:v})} min="1" style={{width:"100%"}}/></div>
         <div><LBL ch="Fecha *"/><Inp type="date" value={form.fecha} onChange={v=>setForm({...form,fecha:v})} style={{width:"100%"}}/></div>
-        <div style={{gridColumn:"1/-1"}}><LBL ch="Stakeholder *"/><Inp value={form.stakeholder} onChange={v=>setForm({...form,stakeholder:v})} placeholder="Ej: Ministerio de Educación…" style={{width:"100%"}}/></div>
+        <div style={{gridColumn:"1/-1"}}><LBL ch="Stakeholder *"/><Inp value={form.stakeholder} onChange={v=>setForm({...form,stakeholder:v})} style={{width:"100%"}}/></div>
         <div style={{gridColumn:"1/-1"}}><LBL ch="Nota (opcional)"/><Inp value={form.nota} onChange={v=>setForm({...form,nota:v})} style={{width:"100%"}}/></div>
       </div>
       {err&&<div style={{color:RD,fontSize:12,marginTop:10}}>{err}</div>}
@@ -885,10 +848,9 @@ function Consignaciones({libros,consignaciones,onSave,regalos}){
 
 /* ── APP ── */
 function App(){
-  const[config,setConfig]=useState(()=>stGet("uss_odconfig")||null);
-  const[authState,setAuthState]=useState("init");
-  const[account,setAccount]=useState(null);
-  const[syncStatus,setSyncStatus]=useState("idle");
+  const[scriptUrl,setScriptUrl]=useState(()=>stGet("uss_gs_url")||null);
+  const[state,setState]=useState("init"); // init|loading|ready|error
+  const[syncStatus,setSyncStatus]=useState("idle"); // idle|syncing|error
   const[lastSync,setLastSync]=useState(null);
   const[syncErr,setSyncErr]=useState("");
   const[initMsg,setInitMsg]=useState("");
@@ -897,80 +859,68 @@ function App(){
   const[consignaciones,setCons]=useState(()=>stGet("uss_consignaciones")||[]);
   const[tab,setTab]=useState("dashboard");
 
-  useEffect(()=>{
-    if(!config){setAuthState("unconfigured");return;}
-    buildMsal(config.clientId);
-    const accounts=msalInst.getAllAccounts();
-    if(accounts.length>0){setAccount(accounts[0]);bootLoad();}
-    else setAuthState("logged-out");
-  },[config?.clientId]);
+  useEffect(()=>{if(!scriptUrl){setState("unconfigured");return;}bootLoad();},[scriptUrl]);
 
   async function bootLoad(){
-    setAuthState("loading");setInitMsg("Conectando con OneDrive…");
+    setState("loading");setInitMsg("Conectando con Google Sheets…");
     try{
-      const token=await getToken();
-      const exists=await checkFileExists(token,config.filePath);
-      if(!exists){setInitMsg("Creando archivo Excel en OneDrive…");await createExcelOnOneDrive(token,config.filePath);stSet("uss_libros",SEED);stSet("uss_regalos",[]);stSet("uss_consignaciones",[]);}
-      else{
-        setInitMsg("Cargando datos desde Excel…");
-        const d=await loadFromOneDrive(token,config.filePath);
-        if(d.libros.length>0){setLibros(d.libros);stSet("uss_libros",d.libros);}
-        setCons(d.consignaciones);stSet("uss_consignaciones",d.consignaciones);
-        setRegalos(d.regalos);stSet("uss_regalos",d.regalos);
+      const raw=await gsRead(scriptUrl);
+      // raw = {Libros:[[]], Regalos:[[]], Consignaciones:[[]]}
+      const librosRaw=rowsToObjects(raw.Libros||[]);
+      const regalosRaw=rowsToObjects(raw.Regalos||[]);
+      const consRaw=rowsToObjects(raw.Consignaciones||[]);
+
+      if(librosRaw.length>0){
+        setLibros(librosRaw);stSet("uss_libros",librosRaw);
+        setRegalos(regalosRaw);stSet("uss_regalos",regalosRaw);
+        setCons(consRaw);stSet("uss_consignaciones",consRaw);
+      } else {
+        // First time: push seed data
+        setInitMsg("Inicializando planilla con catálogo de 77 títulos…");
+        const seedData=stGet("uss_libros")||SEED;
+        await gsWrite(scriptUrl,"Libros",[LIBRO_HDR,...seedData.map(libroToRow)]);
+        await gsWrite(scriptUrl,"Regalos",[REG_HDR]);
+        await gsWrite(scriptUrl,"Consignaciones",[CONS_HDR]);
       }
-      setAuthState("ready");setLastSync(new Date());setInitMsg("");
-    }catch(e){console.error(e);setSyncErr(e.message);setAuthState("error");setInitMsg("");}
+      setState("ready");setLastSync(new Date());setInitMsg("");
+    }catch(e){
+      console.error(e);
+      // Fall back to localStorage — still usable offline
+      setSyncErr("No se pudo conectar con Google Sheets. Trabajando con datos locales.");
+      setState("ready");setInitMsg("");
+    }
   }
 
-  async function handleLogin(){
-    try{buildMsal(config.clientId);const acc=await msalLogin();setAccount(acc);await bootLoad();}
-    catch(e){setSyncErr("Error al iniciar sesión: "+e.message);setAuthState("logged-out");}
-  }
+  // Write helpers — fire and forget (no-cors)
+  const syncSheet=useCallback(async(sheet,values)=>{
+    if(!scriptUrl||state!=="ready")return;
+    setSyncStatus("syncing");setSyncErr("");
+    try{
+      await gsWrite(scriptUrl,sheet,values);
+      setSyncStatus("idle");setLastSync(new Date());
+    }catch(e){setSyncStatus("error");setSyncErr("Error al guardar: "+e.message);}
+  },[scriptUrl,state]);
 
-  const syncLibros=useCallback(async(data)=>{
-    if(authState!=="ready")return;setSyncStatus("syncing");setSyncErr("");
-    try{const t=await getToken();await writeSheet(t,config.filePath,"Libros",[LIBRO_HDR,...data.map(libroToRow)]);setSyncStatus("idle");setLastSync(new Date());}
-    catch(e){setSyncStatus("error");setSyncErr("OneDrive: "+e.message);}
-  },[authState,config]);
+  const saveLibros=useCallback(d=>{setLibros(d);stSet("uss_libros",d);syncSheet("Libros",[LIBRO_HDR,...d.map(libroToRow)]);},[syncSheet]);
+  const saveRegalos=useCallback(d=>{setRegalos(d);stSet("uss_regalos",d);syncSheet("Regalos",[REG_HDR,...d.map(r=>[r.id,r.libroId,r.cantidad,r.fecha,r.stakeholder,r.nota||""])]);},[syncSheet]);
+  const saveCons=useCallback(d=>{setCons(d);stSet("uss_consignaciones",d);syncSheet("Consignaciones",[CONS_HDR,...d.map(c=>[c.id,c.libroId,c.distribuidor,c.cantEnv,c.cantVend||0,c.cantDev||0,c.fechaEnv,c.notas||"",c.estado])]);},[syncSheet]);
 
-  const syncRegalos=useCallback(async(data)=>{
-    if(authState!=="ready")return;setSyncStatus("syncing");setSyncErr("");
-    try{const t=await getToken();await writeSheet(t,config.filePath,"Regalos",[REG_HDR,...data.map(r=>[r.id,r.libroId,r.cantidad,r.fecha,r.stakeholder,r.nota||""])]);setSyncStatus("idle");setLastSync(new Date());}
-    catch(e){setSyncStatus("error");setSyncErr("OneDrive: "+e.message);}
-  },[authState,config]);
+  if(state==="unconfigured")return<SetupScreen onSave={url=>{setScriptUrl(url);stSet("uss_gs_url",url);}}/>;
 
-  const syncCons=useCallback(async(data)=>{
-    if(authState!=="ready")return;setSyncStatus("syncing");setSyncErr("");
-    try{const t=await getToken();await writeSheet(t,config.filePath,"Consignaciones",[CONS_HDR,...data.map(c=>[c.id,c.libroId,c.distribuidor,c.cantEnv,c.cantVend||0,c.cantDev||0,c.fechaEnv,c.notas||"",c.estado])]);setSyncStatus("idle");setLastSync(new Date());}
-    catch(e){setSyncStatus("error");setSyncErr("OneDrive: "+e.message);}
-  },[authState,config]);
-
-  const saveLibros=useCallback(d=>{setLibros(d);stSet("uss_libros",d);syncLibros(d);},[syncLibros]);
-  const saveRegalos=useCallback(d=>{setRegalos(d);stSet("uss_regalos",d);syncRegalos(d);},[syncRegalos]);
-  const saveCons=useCallback(d=>{setCons(d);stSet("uss_consignaciones",d);syncCons(d);},[syncCons]);
-
-  function resetConfig(){if(window.confirm("¿Resetear configuración OneDrive? Los datos locales se mantienen.")){localStorage.removeItem("uss_odconfig");setConfig(null);setAuthState("unconfigured");}}
-
-  if(authState==="unconfigured")return<SetupScreen onSave={c=>{setConfig(c);stSet("uss_odconfig",c);}}/>;
-
-  if(authState==="loading")return<div style={{minHeight:"100vh",background:CR,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16}}>
+  if(state==="loading")return<div style={{minHeight:"100vh",background:CR,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16}}>
     <div style={{color:N,fontSize:15,fontFamily:"Libre Baskerville,serif"}}>Inventario Ediciones USS</div>
     <div style={{color:MU,fontSize:13}}>{initMsg||"Cargando…"}</div>
     <div style={{width:200,height:3,background:"#E5E7EB",borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",background:G,borderRadius:2,animation:"progress 1.2s infinite ease-in-out"}}/></div>
   </div>;
 
+  const TABS=[["dashboard","📊 Dashboard"],["catalogo","📚 Catálogo"],["scanner","🔍 Escáner"],["regalos","🎁 Regalos"],["consignaciones","📦 Consignaciones"]];
+
   const syncBadge=()=>{
-    if(authState==="ready"){
-      if(syncStatus==="syncing")return<span style={{fontSize:11,color:G}}>↺ Guardando en OneDrive…</span>;
-      if(syncStatus==="error")return<span style={{fontSize:11,color:"#FCA5A5"}}>⚠ Error sincronizando</span>;
-      if(lastSync)return<span style={{fontSize:11,color:"rgba(255,255,255,.5)"}}>✓ OneDrive · {lastSync.toLocaleTimeString("es-CL",{hour:"2-digit",minute:"2-digit"})}</span>;
-    }
-    if(authState==="logged-out")return<Btn sm v="secondary" onClick={handleLogin}>Conectar OneDrive</Btn>;
-    if(authState==="error")return<div style={{display:"flex",gap:8,alignItems:"center"}}><span style={{fontSize:11,color:"#FCA5A5"}}>⚠ Sin conexión</span><Btn sm v="secondary" onClick={bootLoad}>Reintentar</Btn></div>;
+    if(syncStatus==="syncing")return<span style={{fontSize:11,color:G}}>↺ Guardando en Sheets…</span>;
+    if(syncStatus==="error")return<span style={{fontSize:11,color:"#FCA5A5"}}>⚠ Error al guardar</span>;
+    if(lastSync)return<span style={{fontSize:11,color:"rgba(255,255,255,.5)"}}>✓ Sheets · {lastSync.toLocaleTimeString("es-CL",{hour:"2-digit",minute:"2-digit"})}</span>;
     return null;
   };
-
-  const TABS=[["dashboard","📊 Dashboard"],["catalogo","📚 Catálogo"],["scanner","🔍 Escáner"],["regalos","🎁 Regalos"],["consignaciones","📦 Consignaciones"]];
 
   return<div style={{minHeight:"100vh",background:CR}}>
     <div style={{background:N,padding:"13px 28px",display:"flex",alignItems:"center",gap:16}}>
@@ -981,8 +931,7 @@ function App(){
       </div>
       <div style={{marginLeft:"auto",display:"flex",gap:14,alignItems:"center"}}>
         {syncBadge()}
-        {account&&<span style={{fontSize:11,color:"rgba(255,255,255,.35)",maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{account.username||account.name}</span>}
-        <button onClick={resetConfig} title="Configuración" style={{background:"none",border:"none",cursor:"pointer",color:"rgba(255,255,255,.3)",fontSize:16,padding:0,lineHeight:1}}>⚙</button>
+        <button onClick={()=>{if(window.confirm("¿Desconectar Google Sheets?")){{localStorage.removeItem("uss_gs_url");setScriptUrl(null);setState("unconfigured");}}}} title="Reconfigurar" style={{background:"none",border:"none",cursor:"pointer",color:"rgba(255,255,255,.3)",fontSize:16,padding:0}}>⚙</button>
       </div>
     </div>
     {syncErr&&<div style={{background:RDL,borderBottom:"1px solid #FCA5A5",padding:"8px 28px",fontSize:12,color:RD,display:"flex",justifyContent:"space-between",alignItems:"center"}}><span>⚠ {syncErr}</span><button onClick={()=>setSyncErr("")} style={{background:"none",border:"none",cursor:"pointer",color:RD,fontSize:16}}>✕</button></div>}
@@ -992,7 +941,7 @@ function App(){
     <div style={{padding:"22px 28px",maxWidth:1500,margin:"0 auto"}}>
       {tab==="dashboard"      &&<Dashboard libros={libros} regalos={regalos} consignaciones={consignaciones}/>}
       {tab==="catalogo"       &&<Catalogo libros={libros} regalos={regalos} consignaciones={consignaciones} onSaveLibros={saveLibros} onSaveRegalos={saveRegalos} onSaveConsignaciones={saveCons}/>}
-      {tab==="scanner"        &&<Scanner libros={libros} regalos={regalos} consignaciones={consignaciones} onSaveRegalos={saveRegalos} onSaveConsignaciones={saveCons} onSaveLibros={saveLibros}/>}
+      {tab==="scanner"        &&<Scanner libros={libros} regalos={regalos} consignaciones={consignaciones} onSaveRegalos={saveRegalos} onSaveLibros={saveLibros}/>}
       {tab==="regalos"        &&<Regalos libros={libros} regalos={regalos} onSave={saveRegalos} consignaciones={consignaciones}/>}
       {tab==="consignaciones" &&<Consignaciones libros={libros} consignaciones={consignaciones} onSave={saveCons} regalos={regalos}/>}
     </div>
