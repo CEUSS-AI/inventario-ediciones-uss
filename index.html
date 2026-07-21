@@ -119,6 +119,7 @@ const BOD_NAMES=["BES/-2","BES/5","BES/8","El Cóndor 5","ST 207/12","ST 207/13"
 const BLANK_BOD=()=>Object.fromEntries(BOD_NAMES.map(k=>[k,0]));
 const LIBRO_HDR=["id","titulo","autor","isbn","pN","pU","ano","si","me","cat","b_bes2","b_bes5","b_bes8","b_condor5","b_st20712","b_st20713"];
 const REG_HDR=["id","libroId","cantidad","fecha","stakeholder","nota"];
+const VENTAS_HDR=["id","libroId","cantidad","fecha","precio","total","metodoPago","nota"];
 const CONS_HDR=["id","libroId","distribuidor","cantEnv","cantVend","cantDev","fechaEnv","notas","estado"];
 
 /* ── SEED (77 títulos) ── */
@@ -250,11 +251,12 @@ function rowsToObjects(rows){
 }
 
 /* ── Stock ── */
-function calcStock(libroId,regalos,consignaciones,libros){
-  const l=libros.find(x=>x.id===libroId);if(!l)return{disp:0,enConsig:0,regalados:0,malEstado:0};
+function calcStock(libroId,regalos,consignaciones,libros,ventas=[]){
+  const l=libros.find(x=>x.id===libroId);if(!l)return{disp:0,enConsig:0,regalados:0,malEstado:0,vendidos:0};
   const regalados=regalos.filter(r=>r.libroId===libroId).reduce((s,r)=>s+r.cantidad,0);
   const enConsig=consignaciones.filter(c=>c.libroId===libroId).reduce((s,c)=>s+c.cantEnv-(c.cantVend||0)-(c.cantDev||0),0);
-  return{disp:l.si-l.me-regalados-enConsig,enConsig,regalados,malEstado:l.me};
+  const vendidos=(ventas||[]).filter(v=>v.libroId===libroId).reduce((s,v)=>s+(v.cantidad||0),0);
+  return{disp:l.si-l.me-regalados-enConsig-vendidos,enConsig,regalados,malEstado:l.me,vendidos};
 }
 
 /* ── UI Primitives ── */
@@ -955,10 +957,125 @@ function Traslados({libros,bodegas,onSaveLibros}){
   </div>;
 }
 
+
+/* ── VENTAS DIRECTAS ── */
+const METODOS=["POS","Depósito / Transferencia","Efectivo","Otro"];
+
+function Ventas({libros,ventas,onSave,regalos,consignaciones}){
+  const[open,setOpen]=useState(false);
+  const[form,setForm]=useState({libroId:"",cantidad:"1",fecha:new Date().toISOString().slice(0,10),precio:"",metodoPago:"POS",nota:""});
+  const[err,setErr]=useState("");
+  const[toast,setToast]=useState("");
+  const[filtro,setFiltro]=useState("");
+  const[filtMetodo,setFiltMetodo]=useState("");
+  const set=k=>v=>setForm(p=>({...p,[k]:v}));
+
+  const libroSel=libros.find(l=>l.id===form.libroId);
+  const stockSel=form.libroId?calcStock(form.libroId,regalos,consignaciones,libros,ventas):null;
+
+  // Cuando cambia el libro, precarga precio USS
+  function onLibroChange(id){
+    const l=libros.find(x=>x.id===id);
+    setForm(p=>({...p,libroId:id,precio:l?.pU||""}));
+  }
+
+  function submit(){
+    if(!form.libroId||!form.cantidad||!form.fecha||!form.metodoPago){setErr("Completa todos los campos.");return;}
+    const q=parseInt(form.cantidad);const p=parseFloat(form.precio)||0;
+    if(!q||q<=0){setErr("Cantidad inválida.");return;}
+    if(stockSel&&q>stockSel.disp){setErr(`Stock insuficiente. Disponible: ${stockSel.disp} ejs.`);return;}
+    onSave([...ventas,{id:uid(),libroId:form.libroId,cantidad:q,fecha:form.fecha,precio:p,total:q*p,metodoPago:form.metodoPago,nota:form.nota}]);
+    setToast(`Venta registrada: ${q} ejs. de "${trunc(libroSel?.titulo,35)}"`);
+    setForm({libroId:"",cantidad:"1",fecha:new Date().toISOString().slice(0,10),precio:"",metodoPago:"POS",nota:""});
+    setOpen(false);setErr("");
+  }
+
+  const vis=ventas.filter(v=>{
+    const q=filtro.toLowerCase();
+    const tit=libros.find(l=>l.id===v.libroId)?.titulo||"";
+    return(!filtro||tit.toLowerCase().includes(q)||v.metodoPago.toLowerCase().includes(q)||v.nota.toLowerCase().includes(q))
+      &&(!filtMetodo||v.metodoPago===filtMetodo);
+  }).sort((a,b)=>b.fecha.localeCompare(a.fecha));
+
+  const totEjs=ventas.reduce((s,v)=>s+v.cantidad,0);
+  const totIngreso=ventas.reduce((s,v)=>s+(v.total||0),0);
+  const MBADGE={POS:{bg:"#EFF6FF",cl:"#1D4ED8"},"Depósito / Transferencia":{bg:"#F0FDF4",cl:"#15803D"},Efectivo:{bg:ORL,cl:OR},Otro:{bg:"#F3F4F6",cl:MU}};
+
+  return<div>
+    {toast&&<Toast msg={toast} onClose={()=>setToast("")}/>}
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
+      <div>
+        <h2 style={{margin:0,color:N,fontSize:17,fontFamily:"Libre Baskerville,serif"}}>Ventas Directas</h2>
+        <p style={{margin:"4px 0 0",color:MU,fontSize:13}}>
+          {ventas.length} ventas · {totEjs.toLocaleString("es-CL")} ejs. · Total: <strong style={{color:GR}}>${totIngreso.toLocaleString("es-CL")}</strong>
+        </p>
+      </div>
+      <Btn onClick={()=>setOpen(o=>!o)}>{open?"Cancelar":"+ Registrar venta"}</Btn>
+    </div>
+
+    {open&&<div style={{background:W,borderRadius:8,padding:22,marginBottom:18,boxShadow:"0 1px 6px rgba(0,0,0,.07)",borderTop:`3px solid ${GR}`}}>
+      <h3 style={{margin:"0 0 16px",color:N,fontSize:14,fontWeight:600}}>Nueva venta directa</h3>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+        <div style={{gridColumn:"1/-1"}}>
+          <LBL ch="Título *"/>
+          <Sel value={form.libroId} onChange={onLibroChange} options={libros.map(l=>({v:l.id,l:trunc(l.titulo,65)}))} placeholder="Selecciona un libro…" style={{width:"100%"}}/>
+          {stockSel&&<div style={{marginTop:5,fontSize:12,color:MU}}>Disponible: <strong style={{color:stockSel.disp<10?RD:stockSel.disp<20?"#D97706":GR}}>{stockSel.disp} ejs.</strong></div>}
+        </div>
+        <div><LBL ch="Cantidad *"/><Inp type="number" value={form.cantidad} onChange={set("cantidad")} min="1" style={{width:"100%"}}/></div>
+        <div><LBL ch="Fecha *"/><Inp type="date" value={form.fecha} onChange={set("fecha")} style={{width:"100%"}}/></div>
+        <div><LBL ch="Precio unitario ($)"/><Inp type="number" value={form.precio} onChange={set("precio")} placeholder="Precio por ejemplar" min="0" style={{width:"100%"}}/></div>
+        <div><LBL ch="Método de pago *"/>
+          <Sel value={form.metodoPago} onChange={set("metodoPago")} options={METODOS.map(m=>({v:m,l:m}))} style={{width:"100%"}}/>
+        </div>
+        <div style={{gridColumn:"1/-1"}}><LBL ch="Nota (opcional)"/><Inp value={form.nota} onChange={set("nota")} placeholder="Canal, cliente, contexto…" style={{width:"100%"}}/></div>
+        {form.cantidad&&form.precio&&<div style={{gridColumn:"1/-1",padding:"10px 14px",background:GRL,borderRadius:6,fontSize:13,color:GR,fontWeight:600}}>
+          Total estimado: ${((parseInt(form.cantidad)||0)*(parseFloat(form.precio)||0)).toLocaleString("es-CL")}
+        </div>}
+      </div>
+      {err&&<div style={{color:RD,fontSize:12,marginTop:10}}>{err}</div>}
+      <div style={{marginTop:14,display:"flex",gap:10}}>
+        <Btn v="green" onClick={submit}>Guardar venta</Btn>
+        <Btn v="ghost" onClick={()=>{setOpen(false);setErr("");}}>Cancelar</Btn>
+      </div>
+    </div>}
+
+    <div style={{display:"flex",gap:10,marginBottom:14,flexWrap:"wrap"}}>
+      <Inp value={filtro} onChange={setFiltro} placeholder="Filtrar por título, método o nota…" style={{flex:1,minWidth:240}}/>
+      <Sel value={filtMetodo} onChange={setFiltMetodo} placeholder="Todos los métodos" options={METODOS.map(m=>({v:m,l:m}))} style={{minWidth:200}}/>
+      {(filtro||filtMetodo)&&<Btn v="ghost" onClick={()=>{setFiltro("");setFiltMetodo("");}}>Limpiar</Btn>}
+    </div>
+
+    {vis.length===0
+      ?<div style={{background:W,borderRadius:8,padding:48,textAlign:"center",color:MU,fontSize:13}}>{ventas.length===0?"Sin ventas registradas.":"Sin resultados."}</div>
+      :<div style={{background:W,borderRadius:8,boxShadow:"0 1px 6px rgba(0,0,0,.07)",overflow:"hidden"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,fontFamily:"DM Sans,sans-serif"}}>
+          <thead><tr style={{background:N,color:W}}>
+            {["Fecha","Título","Cant.","P. Unitario","Total","Método","Nota",""].map(h=><th key={h} style={{padding:"9px 12px",textAlign:["Cant.","P. Unitario","Total"].includes(h)?"center":"left",fontWeight:600,whiteSpace:"nowrap"}}>{h}</th>)}
+          </tr></thead>
+          <tbody>{vis.map((v,i)=>{
+            const l=libros.find(x=>x.id===v.libroId);
+            const mb=MBADGE[v.metodoPago]||{bg:"#F3F4F6",cl:MU};
+            return<tr key={v.id} style={{background:i%2===0?W:"#F9FAFB"}}>
+              <td style={{padding:"8px 12px",color:MU,whiteSpace:"nowrap"}}>{fD(v.fecha)}</td>
+              <td style={{padding:"8px 12px",color:N,fontWeight:500,maxWidth:240}}><div style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{trunc(l?.titulo,52)}</div></td>
+              <td style={{padding:"8px 12px",textAlign:"center",fontWeight:700,color:N}}>{v.cantidad}</td>
+              <td style={{padding:"8px 12px",textAlign:"center",color:MU}}>{v.precio?`$${Number(v.precio).toLocaleString("es-CL")}`:"—"}</td>
+              <td style={{padding:"8px 12px",textAlign:"center",fontWeight:700,color:GR}}>{v.total?`$${Number(v.total).toLocaleString("es-CL")}`:"—"}</td>
+              <td style={{padding:"8px 12px"}}><Badge text={v.metodoPago} color={mb.cl} bg={mb.bg}/></td>
+              <td style={{padding:"8px 12px",color:"#9CA3AF",fontStyle:"italic"}}>{v.nota||"—"}</td>
+              <td style={{padding:"8px 12px",textAlign:"center"}}><Btn sm v="danger" onClick={()=>{if(window.confirm("¿Eliminar esta venta?"))onSave(ventas.filter(x=>x.id!==v.id));}}>✕</Btn></td>
+            </tr>;
+          })}</tbody>
+        </table>
+      </div>}
+  </div>;
+}
+
 /* ── DASHBOARD ── */
-function Dashboard({libros,regalos,consignaciones}){
-  const gs=id=>calcStock(id,regalos,consignaciones,libros);
-  const totDisp=useMemo(()=>libros.reduce((s,l)=>s+Math.max(0,gs(l.id).disp),0),[libros,regalos,consignaciones]);
+function Dashboard({libros,regalos,consignaciones,ventas}){
+  const gs=id=>calcStock(id,regalos,consignaciones,libros,ventas||[]);
+  const totDisp=useMemo(()=>libros.reduce((s,l)=>s+Math.max(0,gs(l.id).disp),0),[libros,regalos,consignaciones,ventas]);
+  const totVentas=useMemo(()=>(ventas||[]).reduce((s,v)=>s+(v.total||0),0),[ventas]);
   const totReg=useMemo(()=>regalos.reduce((s,r)=>s+r.cantidad,0),[regalos]);
   const totCon=useMemo(()=>libros.reduce((s,l)=>s+Math.max(0,gs(l.id).enConsig),0),[libros,consignaciones]);
   const alertas=useMemo(()=>libros.filter(l=>{const d=gs(l.id).disp;return d>=0&&d<20;}),[libros,regalos,consignaciones]);
@@ -978,6 +1095,7 @@ function Dashboard({libros,regalos,consignaciones}){
       <KPI label="En consignación" value={totCon.toLocaleString("es-CL")} accent="#2563EB"/>
       <KPI label="Alertas stock bajo" value={alertas.length} accent="#D97706"/>
       <KPI label="Títulos agotados" value={agotados.length} accent={RD}/>
+      <KPI label="Ingresos por ventas" value={`$${totVentas.toLocaleString('es-CL')}`} accent={GR}/>
     </div>
     <div style={{marginBottom:14}}>
       <P t="🏭 Stock por bodega">
@@ -1101,6 +1219,7 @@ function App(){
   const[regalos,setRegalos]=useState(()=>stGet("uss_regalos")||[]);
   const[consignaciones,setCons]=useState(()=>stGet("uss_consignaciones")||[]);
   const[bodegas,setBodegas]=useState(()=>stGet("uss_bodegas")||BOD_NAMES);
+  const[ventas,setVentas]=useState(()=>stGet("uss_ventas")||[]);
   const[tab,setTab]=useState("dashboard");
 
   useEffect(()=>{if(!scriptUrl){setState("unconfigured");return;}bootLoad();},[scriptUrl]);
@@ -1149,6 +1268,7 @@ function App(){
   const saveRegalos=useCallback(d=>{setRegalos(d);stSet("uss_regalos",d);syncSheet("Regalos",[REG_HDR,...d.map(r=>[r.id,r.libroId,r.cantidad,r.fecha,r.stakeholder,r.nota||""])]);},[syncSheet]);
   const saveCons=useCallback(d=>{setCons(d);stSet("uss_consignaciones",d);syncSheet("Consignaciones",[CONS_HDR,...d.map(c=>[c.id,c.libroId,c.distribuidor,c.cantEnv,c.cantVend||0,c.cantDev||0,c.fechaEnv,c.notas||"",c.estado])]);},[syncSheet]);
   const saveBodegas=useCallback(d=>{setBodegas(d);stSet("uss_bodegas",d);},[]);
+  const saveVentas=useCallback(d=>{setVentas(d);stSet("uss_ventas",d);syncSheet("Ventas",[VENTAS_HDR,...d.map(v=>[v.id,v.libroId,v.cantidad,v.fecha,v.precio||0,v.total||0,v.metodoPago,v.nota||""])]);},[syncSheet]);
 
   if(state==="unconfigured")return<SetupScreen onSave={url=>{setScriptUrl(url);stSet("uss_gs_url",url);}}/>;
 
@@ -1158,7 +1278,7 @@ function App(){
     <div style={{width:200,height:3,background:"#E5E7EB",borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",background:G,borderRadius:2,animation:"progress 1.2s infinite ease-in-out"}}/></div>
   </div>;
 
-  const TABS=[["dashboard","📊 Dashboard"],["catalogo","📚 Catálogo"],["scanner","🔍 Escáner"],["traslados","🚛 Traslados"],["regalos","🎁 Regalos"],["consignaciones","📦 Consignaciones"]];
+  const TABS=[["dashboard","📊 Dashboard"],["catalogo","📚 Catálogo"],["scanner","🔍 Escáner"],["traslados","🚛 Traslados"],["ventas","💰 Ventas"],["regalos","🎁 Regalos"],["consignaciones","📦 Consignaciones"]];
 
   const syncBadge=()=>{
     if(syncStatus==="syncing")return<span style={{fontSize:11,color:G}}>↺ Guardando en Sheets…</span>;
@@ -1184,10 +1304,11 @@ function App(){
       {TABS.map(([k,l])=><button key={k} onClick={()=>setTab(k)} style={{padding:"11px 18px",border:"none",background:"none",cursor:"pointer",whiteSpace:"nowrap",fontWeight:tab===k?700:400,color:tab===k?N:MU,borderBottom:`3px solid ${tab===k?G:"transparent"}`,fontSize:13,fontFamily:"DM Sans,sans-serif"}}>{l}</button>)}
     </div>
     <div style={{padding:"22px 28px",maxWidth:1500,margin:"0 auto"}}>
-      {tab==="dashboard"      &&<Dashboard libros={libros} regalos={regalos} consignaciones={consignaciones}/>}
+      {tab==="dashboard"      &&<Dashboard libros={libros} regalos={regalos} consignaciones={consignaciones} ventas={ventas}/>}
       {tab==="catalogo"       &&<Catalogo libros={libros} regalos={regalos} consignaciones={consignaciones} onSaveLibros={saveLibros} onSaveRegalos={saveRegalos} onSaveConsignaciones={saveCons} bodegas={bodegas} onSaveBodegas={saveBodegas}/>}
       {tab==="scanner"        &&<Scanner libros={libros} regalos={regalos} consignaciones={consignaciones} onSaveRegalos={saveRegalos} onSaveLibros={saveLibros} onSaveConsignaciones={saveCons} bodegas={bodegas}/>}
       {tab==="traslados"      &&<Traslados libros={libros} bodegas={bodegas} onSaveLibros={saveLibros}/>}
+      {tab==="ventas"          &&<Ventas libros={libros} ventas={ventas} onSave={saveVentas} regalos={regalos} consignaciones={consignaciones}/>}
       {tab==="regalos"        &&<Regalos libros={libros} regalos={regalos} onSave={saveRegalos} consignaciones={consignaciones}/>}
       {tab==="consignaciones" &&<Consignaciones libros={libros} consignaciones={consignaciones} onSave={saveCons} regalos={regalos}/>}
     </div>
