@@ -614,7 +614,11 @@ function Catalogo({libros,regalos,consignaciones,onSaveLibros,onSaveRegalos,onSa
   const[addOpen,setAddOpen]=useState(false);
   const[toast,setToast]=useState("");
   const cats=[...new Set(libros.map(l=>l.cat))].sort();
-  const filtered=useMemo(()=>libros.filter(l=>{const qL=q.toLowerCase();return(!q||l.titulo.toLowerCase().includes(qL)||l.autor.toLowerCase().includes(qL)||(l.isbn||"").includes(qL))&&(!cat||l.cat===cat);}),[q,cat,libros]);
+  const filtered=useMemo(()=>libros.filter(l=>{
+    const qL=q.toLowerCase();
+    return(!q||(l.titulo||"").toLowerCase().includes(qL)||(l.autor||"").toLowerCase().includes(qL)||(l.isbn!=null?String(l.isbn):"").toLowerCase().includes(qL))
+      &&(!cat||l.cat===cat);
+  }),[q,cat,libros]);
   function handleAdd(f,bod){const n=formToLibro(f,uid(),bod);onSaveLibros([...libros,n]);setAddOpen(false);setToast(`"${trunc(n.titulo,40)}" agregado.`);}
   const TH=({ch,center})=><th style={{padding:"10px 12px",textAlign:center?"center":"left",fontWeight:600,whiteSpace:"nowrap",color:W,fontSize:13}}>{ch}</th>;
   return<div>
