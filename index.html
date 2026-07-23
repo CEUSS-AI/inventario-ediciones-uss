@@ -677,13 +677,16 @@ function Scanner({libros,regalos,consignaciones,onSaveRegalos,onSaveLibros,onSav
   const[stakeholder,setStakeholder]=useState("");
   const[distribuidor,setDistribuidor]=useState("");
   const[bodegaEntrada,setBodegaEntrada]=useState("");
+  const[notaRegalo,setNotaRegalo]=useState("");
+  const[isbnEscaneado,setIsbnEscaneado]=useState("");
+  const[addingNew,setAddingNew]=useState(false);
   const[fecha,setFecha]=useState(new Date().toISOString().slice(0,10));
   const[msg,setMsg]=useState("");
   const[display,setDisplay]=useState(""); // solo para mostrar en pantalla
   useEffect(()=>{setTimeout(()=>scanRef.current?.focus(),100);},[]);
 
   function reset(){
-    setFound(null);setAction(null);setQty("1");setStakeholder("");setDistribuidor("");
+    setFound(null);setAction(null);setQty("1");setStakeholder("");setDistribuidor("");setNotaRegalo("");setAddingNew(false);setNotFound(false);
     setDisplay("");
     if(scanRef.current){scanRef.current.value="";scanRef.current.focus();}
   }
@@ -694,7 +697,7 @@ function Scanner({libros,regalos,consignaciones,onSaveRegalos,onSaveLibros,onSav
     if(!clean)return;
     const book=libros.find(l=>l.isbn&&String(l.isbn).trim()===clean);
     if(book){setFound(book);setNotFound(false);setAction(null);setQty("1");}
-    else{setFound(null);setNotFound(true);}
+    else{setFound(null);setNotFound(true);setIsbnEscaneado(clean);}
     setDisplay("");
     if(scanRef.current){scanRef.current.value="";scanRef.current.focus();}
   }
@@ -722,7 +725,7 @@ function Scanner({libros,regalos,consignaciones,onSaveRegalos,onSaveLibros,onSav
     const q=parseInt(qty);if(!q||q<=0||!stakeholder.trim())return;
     const s=calcStock(found.id,regalos,consignaciones,libros);
     if(q>s.disp){setMsg(`⚠ Stock insuficiente. Disponible: ${s.disp} ejs.`);return;}
-    onSaveRegalos([...regalos,{id:uid(),libroId:found.id,cantidad:q,fecha,stakeholder:stakeholder.trim(),nota:"Escáner"}]);
+    onSaveRegalos([...regalos,{id:uid(),libroId:found.id,cantidad:q,fecha,stakeholder:stakeholder.trim(),nota:notaRegalo.trim()||"Escáner"}]);
     setMsg(`✓ Regalo: ${q} ejs. → ${stakeholder}`);reset();
   }
 
@@ -759,7 +762,30 @@ function Scanner({libros,regalos,consignaciones,onSaveRegalos,onSaveLibros,onSav
       <div style={{marginTop:10,fontSize:11,color:MU}}>💡 El lector envía el ISBN y un Enter automáticamente — solo apunta y escanea.</div>
     </div>
     {msg&&<div style={{marginBottom:16,padding:"10px 16px",background:msg.startsWith("⚠")?ORL:GRL,borderRadius:8,fontSize:13,color:msg.startsWith("⚠")?OR:GR,fontWeight:500}}>{msg}<button onClick={()=>setMsg("")} style={{float:"right",background:"none",border:"none",cursor:"pointer",color:"inherit",fontSize:16}}>✕</button></div>}
-    {notFound&&<div style={{padding:20,background:RDL,borderRadius:8,marginBottom:16,fontSize:13,color:RD}}>❌ No se encontró ningún libro con ese ISBN. Agrégalo desde el Catálogo.</div>}
+    {notFound&&!addingNew&&<div className="pin" style={{padding:18,background:RDL,border:`1px solid #FCA5A5`,borderRadius:8,marginBottom:16}}>
+      <div style={{fontSize:13,color:RD,fontWeight:600,marginBottom:10}}>❌ ISBN <code style={{background:"#FEE2E2",padding:"1px 6px",borderRadius:3}}>{isbnEscaneado}</code> no está en el catálogo.</div>
+      <div style={{display:"flex",gap:10}}>
+        <Btn v="green" onClick={()=>setAddingNew(true)}>+ Agregar este libro al catálogo</Btn>
+        <Btn v="ghost" onClick={()=>{setNotFound(false);setIsbnEscaneado("");scanRef.current?.focus();}}>Cancelar</Btn>
+      </div>
+    </div>}
+    {addingNew&&<div className="pin" style={{marginBottom:16,background:W,borderRadius:10,overflow:"hidden",boxShadow:"0 4px 20px rgba(0,0,0,.1)"}}>
+      <div style={{background:GR,padding:"11px 18px"}}><span style={{color:W,fontWeight:600,fontSize:14}}>+ Agregar nuevo libro — ISBN {isbnEscaneado}</span></div>
+      <div style={{padding:18}}>
+        <BookForm
+          initial={{titulo:"",autor:"",isbn:isbnEscaneado,pN:"",pU:"",ano:"",si:"",me:"0",cat:"Historia y Política",catCustom:""}}
+          initBod={bodegas?Object.fromEntries(bodegas.map(k=>[k,0])):undefined}
+          bodegaNames={bodegas}
+          onSave={(f,bod)=>{
+            const nuevo=formToLibro(f,uid(),bod);
+            onSaveLibros([...libros,nuevo]);
+            setAddingNew(false);setNotFound(false);
+            setFound(nuevo);setMsg(`✓ "${trunc(nuevo.titulo,35)}" agregado al catálogo.`);
+          }}
+          onCancel={()=>{setAddingNew(false);setNotFound(false);setIsbnEscaneado("");scanRef.current?.focus();}}
+        />
+      </div>
+    </div>}
     {found&&<div className="pin" style={{background:W,borderRadius:10,border:"2px solid #2563EB",overflow:"hidden",boxShadow:"0 4px 20px rgba(37,99,235,.15)"}}>
       <div style={{background:"#1E3A8A",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
         <div>
@@ -819,12 +845,13 @@ function Scanner({libros,regalos,consignaciones,onSaveRegalos,onSaveLibros,onSav
         </div>}
         {action==="regalo"&&<div>
           <div style={{fontSize:13,fontWeight:600,color:G,marginBottom:12}}>🎁 Registrar regalo / donación</div>
-          <div style={{display:"grid",gridTemplateColumns:"auto auto 1fr",gap:10,alignItems:"flex-end"}}>
+          <div style={{display:"grid",gridTemplateColumns:"auto auto 1fr",gap:10,alignItems:"flex-end",marginBottom:10}}>
             <div><LBL ch="Cantidad"/><Inp type="number" value={qty} onChange={setQty} min="1" autoFocus={true} style={{width:90}}/></div>
             <div><LBL ch="Fecha"/><Inp type="date" value={fecha} onChange={setFecha} style={{width:140}}/></div>
             <div><LBL ch="Stakeholder *"/><Inp value={stakeholder} onChange={setStakeholder} placeholder="Nombre del destinatario…" style={{width:"100%"}}/></div>
           </div>
-          <div style={{marginTop:10,display:"flex",gap:10}}>
+          <div style={{marginBottom:10}}><LBL ch="Nota (opcional)"/><Inp value={notaRegalo} onChange={setNotaRegalo} placeholder="Ej: Feria del Libro, reunión protocolar… (deja vacío para 'Escáner')" style={{width:"100%"}}/></div>
+          <div style={{display:"flex",gap:10}}>
             <Btn v="secondary" onClick={doRegalo}>Confirmar regalo</Btn>
             <Btn v="ghost" onClick={()=>setAction(null)}>Cancelar</Btn>
           </div>
